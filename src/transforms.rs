@@ -168,6 +168,8 @@ fn combat_events_v1(raw_gz_ndjson: &[u8]) -> anyhow::Result<Vec<u8>> {
     let mut last_attacks: HashMap<Uuid, LastAttack> = HashMap::new();
     // Track last known position/rotation per player (from position packets)
     let mut last_pos: HashMap<Uuid, (f64, f64, f64, f64, f64)> = HashMap::new(); // (x, y, z, yaw, pitch)
+    // Track arm swing animation for NoSwing-style checks (ANIMATION packets).
+    let mut last_swing_ts: HashMap<Uuid, u64> = HashMap::new();
 
     while {
         buf.clear();
@@ -206,6 +208,12 @@ fn combat_events_v1(raw_gz_ndjson: &[u8]) -> anyhow::Result<Vec<u8>> {
         let Some(ts) = ts else { continue };
 
         let fields = v.get("fields").and_then(|x| x.as_object());
+
+        // Track arm swing animations for context.
+        if pkt.contains("ANIMATION") {
+            last_swing_ts.insert(uuid, ts);
+            continue;
+        }
 
         // Track position updates for context
         if pkt.contains("POSITION") || pkt.contains("ROTATION") {
@@ -259,6 +267,14 @@ fn combat_events_v1(raw_gz_ndjson: &[u8]) -> anyhow::Result<Vec<u8>> {
             obj.insert("player_yaw".to_string(), json_f64(yaw));
             obj.insert("player_pitch".to_string(), json_f64(pitch));
         }
+
+        // Add arm swing context: had a swing shortly before the attack.
+        // This lets downstream modules implement a NoSwing detector without parsing raw packets.
+        let had_swing = last_swing_ts
+            .get(&uuid)
+            .map(|swing_ts| ts.saturating_sub(*swing_ts) <= 800)
+            .unwrap_or(false);
+        obj.insert("had_swing".to_string(), Value::Bool(had_swing));
 
         // Calculate deltas from last attack (for NCP-style checks)
         if let Some(prev) = last_attacks.get(&uuid).cloned() {

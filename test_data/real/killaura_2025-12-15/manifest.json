@@ -1,0 +1,45 @@
+{
+  "label": "killaura",
+  "captured_at_local": "2025-12-15T13:46:07.375886+00:00",
+  "note": null,
+  "markers": {
+    "start": {
+      "pkt": "DEV_MARKER",
+      "name": "Uxon",
+      "dir": "dev",
+      "fields": {
+        "warmup_s": 60,
+        "toggle_s": 10,
+        "dev_label": "killaura",
+        "dev_phase": "start",
+        "dev_session_id": "19f8875a-3e5e-4118-bb59-5d28d3914602",
+        "dev_state": "off",
+        "duration_s": 60
+      },
+      "uuid": "bc8b4993-e8fa-42d9-be60-7ebbe5267c98",
+      "ts": 1765805891447
+    },
+    "stop": {
+      "pkt": "DEV_MARKER",
+      "name": "Uxon",
+      "dir": "dev",
+      "fields": {
+        "reason": "finished",
+        "dev_label": "killaura",
+        "dev_phase": "stop",
+        "dev_session_id": "19f8875a-3e5e-4118-bb59-5d28d3914602",
+        "dev_state": "off"
+      },
+      "uuid": "bc8b4993-e8fa-42d9-be60-7ebbe5267c98",
+      "ts": 1765805951399
+    }
+  },
+  "derived_window": {
+    "start_ts": 1765805891447,
+    "stop_ts": 1765805951399,
+    "margin_ms": 30000
+  },
+  "files": {
+    "count": 68
+  }
+}
