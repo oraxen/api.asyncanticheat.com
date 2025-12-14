@@ -25,6 +25,11 @@ const EXPECTED_MOVES_PER_SECOND: f64 = 20.0;
 /// Timer tolerance percentage
 const TIMER_TOLERANCE: f64 = 1.1; // 10% tolerance
 
+/// Basic survival-fly heuristic: seconds airborne above last ground level before we consider it suspicious.
+const FLY_AIRTIME_MS: i64 = 6000;
+/// Require being at least this many blocks above last ground Y.
+const FLY_MIN_ABOVE_GROUND: f64 = 3.0;
+
 pub struct MovementCheck {
     config: MoveConfig,
 }
@@ -108,6 +113,19 @@ impl MovementCheck {
             findings.extend(self.check_timer(state, timestamp_ms));
         }
 
+        // Track air window early so movement-only heuristics can use it.
+        if new_loc.on_ground {
+            state.movement.air_start_ms = None;
+            state.movement.max_air_y = new_loc.y;
+        } else {
+            if state.movement.air_start_ms.is_none() {
+                state.movement.air_start_ms = Some(timestamp_ms);
+                state.movement.max_air_y = new_loc.y;
+            } else if new_loc.y > state.movement.max_air_y {
+                state.movement.max_air_y = new_loc.y;
+            }
+        }
+
         if let Some(last_loc) = state.movement.last_location {
             // Horizontal distance check
             let h_dist = new_loc.horizontal_distance(&last_loc);
@@ -133,13 +151,16 @@ impl MovementCheck {
 
             // Generic movement check
             findings.extend(self.check_generic_movement(state, h_dist, timestamp_ms));
+
+            // Basic survival fly / hover detection (movement-only).
+            findings.extend(self.check_survival_fly(state, &new_loc, v_dist, timestamp_ms));
         }
 
         // Track fall distance BEFORE updating last_location
         // (otherwise we'd compare new_loc to itself)
         if new_loc.on_ground {
             // Player landed: reset fall distance regardless of magnitude to avoid small-fall accumulation.
-            state.movement.fall_distance = 0.0;
+                state.movement.fall_distance = 0.0;
             state.movement.last_ground_y = new_loc.y;
         } else if let Some(last) = state.movement.last_location {
             if new_loc.y < last.y {
@@ -151,6 +172,61 @@ impl MovementCheck {
         state.movement.last_location = Some(new_loc);
         state.movement.last_on_ground = new_loc.on_ground;
         state.movement.last_move_ms = timestamp_ms;
+
+        findings
+    }
+
+    fn check_survival_fly(
+        &self,
+        state: &mut PlayerState,
+        new_loc: &Location,
+        v_dist: f64,
+        timestamp_ms: i64,
+    ) -> Vec<Finding> {
+        let mut findings = Vec::new();
+
+        if new_loc.on_ground {
+            return findings;
+        }
+
+        let Some(start_ms) = state.movement.air_start_ms else {
+            return findings;
+        };
+
+        let air_ms = timestamp_ms - start_ms;
+        if air_ms <= 0 {
+            return findings;
+        }
+
+        let above_ground = new_loc.y - state.movement.last_ground_y;
+        if air_ms >= FLY_AIRTIME_MS && above_ground >= FLY_MIN_ABOVE_GROUND {
+            // If we're still not falling (or descending extremely slowly), it's suspicious.
+            // Keep conservative to avoid spam/false positives.
+            if v_dist >= -0.25 {
+                let mitigated = state.movement.distance_vl.update(1.0, timestamp_ms);
+                findings.push(
+                    Finding::new(
+                        state.player_uuid,
+                        FeatureId::AacMoveGeneric,
+                        (air_ms as f32) / 1000.0,
+                        state.movement.distance_vl.get(),
+                        mitigated,
+                        timestamp_ms,
+                    )
+                    .with_description(format!(
+                        "Suspicious airtime: {:.1}s airborne at y={:.2} (+{:.1} above last ground y={:.2})",
+                        air_ms as f64 / 1000.0,
+                        new_loc.y,
+                        above_ground,
+                        state.movement.last_ground_y
+                    )),
+                );
+
+                // Reset window so we don't emit every tick.
+                state.movement.air_start_ms = Some(timestamp_ms);
+                state.movement.max_air_y = new_loc.y;
+            }
+        }
 
         findings
     }

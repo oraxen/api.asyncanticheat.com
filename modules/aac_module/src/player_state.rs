@@ -127,6 +127,9 @@ pub struct MoveState {
     // Fall tracking
     pub fall_distance: f64,
     pub last_ground_y: f64,
+    // Air tracking (basic survival fly heuristic)
+    pub air_start_ms: Option<i64>,
+    pub max_air_y: f64,
     // Movement constants
     pub constants: MoveConstants,
 }
@@ -151,6 +154,8 @@ impl MoveState {
             using_item: false,
             fall_distance: 0.0,
             last_ground_y: 0.0,
+            air_start_ms: None,
+            max_air_y: 0.0,
             constants: MoveConstants::default(),
         }
     }
