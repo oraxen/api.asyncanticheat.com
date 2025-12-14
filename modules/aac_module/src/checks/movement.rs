@@ -9,7 +9,7 @@
 
 use crate::config::MoveConfig;
 use crate::findings::{FeatureId, Finding};
-use crate::packets::{EntityVelocityPacket, Location, ParsedPacket, PositionLookPacket, PositionPacket, SneakPacket};
+use crate::packets::{EntityVelocityPacket, Location, ParsedPacket, SneakPacket};
 use crate::player_state::PlayerState;
 
 /// Maximum horizontal speed per tick (blocks) - vanilla walking is ~0.1
@@ -69,6 +69,14 @@ impl MovementCheck {
                     on_ground: pos.on_ground,
                 };
                 findings.extend(self.check_movement(state, loc, timestamp_ms));
+            }
+            ParsedPacket::Look(look) => {
+                // Update yaw/pitch from Look packets to keep state.movement.last_location accurate
+                // This is important for InteractCheck and other checks that rely on look direction
+                if let Some(ref mut loc) = state.movement.last_location {
+                    loc.yaw = look.yaw;
+                    loc.pitch = look.pitch;
+                }
             }
             ParsedPacket::EntityVelocity(vel) => {
                 findings.extend(self.handle_velocity(state, vel, timestamp_ms));
@@ -412,10 +420,17 @@ impl MovementCheck {
         vel: &EntityVelocityPacket,
         timestamp_ms: i64,
     ) -> Vec<Finding> {
-        // Store velocity for later checking
-        // Note: entity_id 0 or matching player's entity ID means it's for this player
-        state.movement.pending_velocity = Some((vel.velocity_x, vel.velocity_y, vel.velocity_z));
-        state.movement.velocity_received_ms = timestamp_ms;
+        // Only store velocity if it's for this player
+        // entity_id 0 is invalid, and we need to match the player's entity ID
+        // Since we don't track entity IDs per player, we use a heuristic:
+        // - entity_id < 0 is likely invalid
+        // - Very high entity IDs are suspicious
+        // For now, we'll accept entity_id > 0 as potentially valid
+        // A proper fix would track player entity IDs from spawn packets
+        if vel.entity_id > 0 {
+            state.movement.pending_velocity = Some((vel.velocity_x, vel.velocity_y, vel.velocity_z));
+            state.movement.velocity_received_ms = timestamp_ms;
+        }
         Vec::new()
     }
 

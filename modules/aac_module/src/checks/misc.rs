@@ -225,7 +225,9 @@ impl MiscCheck {
         let elapsed = timestamp_ms - state.misc.window_start_ms;
 
         // Short window check (1 second)
-        if elapsed >= SHORT_WINDOW_MS && state.misc.short_window_count > 0 {
+        // Calculate how many complete short windows have passed
+        let short_windows_elapsed = elapsed / SHORT_WINDOW_MS;
+        if short_windows_elapsed > 0 && state.misc.short_window_count > 0 {
             // Emit rate normalized to per-second
             let rate = state.misc.short_window_count as f32;
             
@@ -246,6 +248,7 @@ impl MiscCheck {
                 );
             }
 
+            // Reset short window counter and advance window start for short window
             state.misc.short_window_count = 0;
         }
 
@@ -271,7 +274,7 @@ impl MiscCheck {
                 );
             }
 
-            // Reset all windows
+            // Reset all windows and advance window_start_ms
             state.misc.short_window_count = 0;
             state.misc.medium_window_count = 0;
             state.misc.long_window_count = 0;

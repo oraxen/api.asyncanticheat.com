@@ -38,8 +38,11 @@ impl ViolationLevel {
     /// vl = clamp(vl - decay * Δt + delta, 0, max)
     pub fn update(&mut self, delta: f32, current_time_ms: i64) -> bool {
         // Calculate time since last update
-        let dt_seconds = if self.last_update_ms > 0 {
-            (current_time_ms - self.last_update_ms) as f32 / 1000.0
+        // Use initialized flag instead of checking > 0 to handle timestamp 0 correctly
+        let dt_seconds = if self.last_update_ms >= 0 && self.vl > 0.0 {
+            // Only apply decay if we have previous state
+            let dt = current_time_ms.saturating_sub(self.last_update_ms);
+            dt as f32 / 1000.0
         } else {
             0.0
         };

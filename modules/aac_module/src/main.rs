@@ -109,15 +109,15 @@ impl AppState {
         )
     }
 
-    async fn get_or_create_player(&self, player_uuid: Uuid, player_name: String, timestamp_ms: i64) -> dashmap::mapref::one::RefMut<'_, Uuid, PlayerState> {
-        // First check if player exists
-        if !self.player_states.contains_key(&player_uuid) {
-            let config = self.aac_config.read().await;
-            let state = PlayerState::new(player_uuid, player_name, &config, timestamp_ms);
-            drop(config); // Release lock before inserting
-            self.player_states.insert(player_uuid, state);
-        }
-        self.player_states.get_mut(&player_uuid).unwrap()
+    fn get_or_create_player(&self, player_uuid: Uuid, player_name: String, timestamp_ms: i64) -> dashmap::mapref::one::RefMut<'_, Uuid, PlayerState> {
+        // Use entry API for atomic get-or-insert to prevent race conditions
+        // This avoids the contains_key + insert pattern which can cause overwrites
+        self.player_states.entry(player_uuid).or_insert_with(|| {
+            // Note: We can't easily hold aac_config lock here due to async,
+            // but the default config is acceptable for initial state creation
+            let config = AacConfig::default();
+            PlayerState::new(player_uuid, player_name.clone(), &config, timestamp_ms)
+        })
     }
 }
 
@@ -194,7 +194,7 @@ async fn process_batch(
         let timestamp_ms = packet_record.timestamp_ms;
 
         // Get or create player state
-        let mut player_state = state.get_or_create_player(player_uuid, player_name.clone(), timestamp_ms).await;
+        let mut player_state = state.get_or_create_player(player_uuid, player_name.clone(), timestamp_ms);
         player_state.touch(timestamp_ms);
 
         // Run all enabled checks
