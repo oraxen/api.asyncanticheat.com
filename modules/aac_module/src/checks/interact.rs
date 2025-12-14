@@ -52,6 +52,19 @@ impl InteractCheck {
     ) -> Vec<Finding> {
         let mut findings = Vec::new();
 
+        // Exempt configured materials/items from interact checks.
+        if let Some(ref item_type) = place.item_type {
+            if self
+                .config
+                .exempt
+                .iter()
+                .any(|e| e.eq_ignore_ascii_case(item_type))
+            {
+                state.interact.last_interact_ms = timestamp_ms;
+                return findings;
+            }
+        }
+
         // Get player's current look direction
         if let Some(loc) = state.movement.last_location {
             // Calculate expected look direction to target block

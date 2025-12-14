@@ -97,6 +97,8 @@ pub struct BlockPlacePacket {
     pub z: i32,
     pub face: String,
     pub hand: String,
+    /// Optional item/material type when available from upstream transforms.
+    pub item_type: Option<String>,
 }
 
 /// Item Use packet data

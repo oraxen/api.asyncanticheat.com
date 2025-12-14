@@ -247,7 +247,9 @@ async fn process_batch(
     // Send findings to API - use a single task to avoid unbounded task spawning
     // This prevents resource exhaustion from noisy detectors or large batches
     if !all_findings.is_empty() {
-        let api_url = format!("{}/module/findings", state.module_config.api_url);
+        // Findings callback endpoint is the ingestion API's callbacks route.
+        let base = state.module_config.api_url.trim_end_matches('/');
+        let api_url = format!("{}/callbacks/findings", base);
         let http_client = state.http_client.clone();
         let token = state.module_config.callback_token.clone();
         let server_id = request.server_id.clone();
