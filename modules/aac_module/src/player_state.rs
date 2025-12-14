@@ -338,7 +338,8 @@ impl PlayerState {
 
     /// Update the last activity timestamp
     pub fn touch(&mut self, timestamp_ms: i64) {
-        self.last_update_ms = timestamp_ms;
+        // Out-of-order timestamps can occur; never move activity time backwards.
+        self.last_update_ms = self.last_update_ms.max(timestamp_ms);
     }
 
     /// Check if this player state is stale (no activity for too long)

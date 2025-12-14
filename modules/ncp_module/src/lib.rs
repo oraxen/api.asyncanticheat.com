@@ -208,10 +208,17 @@ pub fn process_combat_events(
 
             let elapsed_ms = {
                 let first = state.fight_speed.recent_attack_ts.front().copied().unwrap_or(ev.ts);
-                (ev.ts.saturating_sub(first)).max(1)
+                ev.ts.saturating_sub(first)
             } as f64;
             let count = state.fight_speed.recent_attack_ts.len() as f64;
-            let aps = count * 1000.0 / elapsed_ms;
+
+            // APS is based on intervals between attacks; the first attack should not instantly flag.
+            let aps = if count <= 1.0 || elapsed_ms <= 0.0 {
+                0.0
+            } else {
+                let intervals = count - 1.0;
+                intervals * 1000.0 / elapsed_ms
+            };
 
             if aps > cfg.speed_limit_aps {
                 let added = aps - cfg.speed_limit_aps;

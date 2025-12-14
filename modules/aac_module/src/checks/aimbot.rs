@@ -50,13 +50,18 @@ impl AimbotCheck {
             _ => return Vec::new(),
         };
 
-        // Calculate deltas
-        let delta_yaw = self.normalize_angle(yaw - state.aimbot.last_yaw);
-        let delta_pitch = pitch - state.aimbot.last_pitch;
-        let time_delta = timestamp_ms - state.aimbot.last_rotation_ms;
-
-        // Store samples
+        // Store samples (only if timestamps are strictly increasing to avoid polluting buffers)
         if state.aimbot.last_rotation_ms > 0 {
+            let time_delta = timestamp_ms - state.aimbot.last_rotation_ms;
+            if time_delta <= 0 {
+                // Out-of-order / duplicate timestamp: ignore without mutating state.
+                return Vec::new();
+            }
+
+            // Calculate deltas
+            let delta_yaw = self.normalize_angle(yaw - state.aimbot.last_yaw);
+            let delta_pitch = pitch - state.aimbot.last_pitch;
+
             state.aimbot.yaw_deltas.push(delta_yaw.abs() as f64);
             state.aimbot.pitch_deltas.push(delta_pitch.abs() as f64);
 
@@ -86,10 +91,12 @@ impl AimbotCheck {
             }
         }
 
-        // Update state
-        state.aimbot.last_yaw = yaw;
-        state.aimbot.last_pitch = pitch;
-        state.aimbot.last_rotation_ms = timestamp_ms;
+        // Update state (monotonic timestamp guard)
+        if timestamp_ms >= state.aimbot.last_rotation_ms {
+            state.aimbot.last_yaw = yaw;
+            state.aimbot.last_pitch = pitch;
+            state.aimbot.last_rotation_ms = timestamp_ms;
+        }
 
         findings
     }

@@ -37,16 +37,16 @@ impl ViolationLevel {
     /// Formula from AAC5's O.a(delta, ...):
     /// vl = clamp(vl - decay * Δt + delta, 0, max)
     pub fn update(&mut self, delta: f32, current_time_ms: i64) -> bool {
-        // Calculate time since last update
-        // Use initialized flag instead of checking > 0 to handle timestamp 0 correctly
-        let dt_seconds = if self.last_update_ms >= 0 && self.vl > 0.0 {
-            // Only apply decay if we have previous state
-            let dt = current_time_ms.saturating_sub(self.last_update_ms);
+        // Calculate time since last update.
+        // Out-of-order timestamps can occur; never move last_update_ms backwards.
+        let prev_ms = self.last_update_ms;
+        let dt_seconds = if current_time_ms > prev_ms && self.vl > 0.0 {
+            let dt = current_time_ms - prev_ms;
             dt as f32 / 1000.0
         } else {
             0.0
         };
-        self.last_update_ms = current_time_ms;
+        self.last_update_ms = prev_ms.max(current_time_ms);
 
         // Apply decay and delta
         let decay_amount = self.config.decay * dt_seconds;
