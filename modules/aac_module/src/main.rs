@@ -109,14 +109,17 @@ impl AppState {
         )
     }
 
-    fn get_or_create_player(&self, player_uuid: Uuid, player_name: String, timestamp_ms: i64) -> dashmap::mapref::one::RefMut<'_, Uuid, PlayerState> {
+    fn get_or_create_player(
+        &self,
+        player_uuid: Uuid,
+        player_name: String,
+        timestamp_ms: i64,
+        config: &AacConfig,
+    ) -> dashmap::mapref::one::RefMut<'_, Uuid, PlayerState> {
         // Use entry API for atomic get-or-insert to prevent race conditions
         // This avoids the contains_key + insert pattern which can cause overwrites
         self.player_states.entry(player_uuid).or_insert_with(|| {
-            // Note: We can't easily hold aac_config lock here due to async,
-            // but the default config is acceptable for initial state creation
-            let config = AacConfig::default();
-            PlayerState::new(player_uuid, player_name.clone(), &config, timestamp_ms)
+            PlayerState::new(player_uuid, player_name.clone(), config, timestamp_ms)
         })
     }
 }
@@ -180,6 +183,9 @@ async fn process_batch(
         request.batch_id, packets_count, request.server_id
     );
 
+    // Read current config once - used for both checks and new player creation
+    let current_config = state.aac_config.read().await.clone();
+    
     // Get fresh checks with current config (ensures config updates take effect)
     let (delays_check, movement_check, aimbot_check, autoclicker_check, hitbox_check, interact_check, misc_check) = 
         state.get_checks().await;
@@ -193,8 +199,8 @@ async fn process_batch(
             .unwrap_or_else(|| player_uuid.to_string());
         let timestamp_ms = packet_record.timestamp_ms;
 
-        // Get or create player state
-        let mut player_state = state.get_or_create_player(player_uuid, player_name.clone(), timestamp_ms);
+        // Get or create player state with current config (not defaults)
+        let mut player_state = state.get_or_create_player(player_uuid, player_name.clone(), timestamp_ms, &current_config);
         player_state.touch(timestamp_ms);
 
         // Run all enabled checks
@@ -215,13 +221,19 @@ async fn process_batch(
 
     let findings_count = all_findings.len();
 
-    // Send findings to API
+    // Send findings to API - use a single task to avoid unbounded task spawning
+    // This prevents resource exhaustion from noisy detectors or large batches
     if !all_findings.is_empty() {
         let api_url = format!("{}/module/findings", state.module_config.api_url);
+        let http_client = state.http_client.clone();
+        let token = state.module_config.callback_token.clone();
+        let server_id = request.server_id.clone();
         
-        for (finding, player_name) in all_findings {
-            let callback_req = FindingCallbackRequest {
-                server_id: request.server_id.clone(),
+        // Build all callback requests upfront
+        let callbacks: Vec<FindingCallbackRequest> = all_findings
+            .into_iter()
+            .map(|(finding, player_name)| FindingCallbackRequest {
+                server_id: server_id.clone(),
                 player_uuid: finding.player_uuid.to_string(),
                 player_name: Some(player_name),
                 detector_name: finding.feature.detector_name().to_string(),
@@ -229,16 +241,15 @@ async fn process_batch(
                 title: finding.title.clone(),
                 description: finding.description.clone(),
                 evidence: finding.evidence.clone(),
-            };
+            })
+            .collect();
 
-            let http_client = state.http_client.clone();
-            let token = state.module_config.callback_token.clone();
-            let url = api_url.clone();
-
-            // Send callback asynchronously
-            tokio::spawn(async move {
+        // Spawn a single task to send all findings sequentially
+        // This bounds the number of concurrent tasks regardless of findings count
+        tokio::spawn(async move {
+            for callback_req in callbacks {
                 match http_client
-                    .post(&url)
+                    .post(&api_url)
                     .header("Authorization", format!("Bearer {}", token))
                     .json(&callback_req)
                     .send()
@@ -254,8 +265,8 @@ async fn process_batch(
                         error!("Finding callback error: {}", e);
                     }
                 }
-            });
-        }
+            }
+        });
     }
 
     let elapsed = start.elapsed();

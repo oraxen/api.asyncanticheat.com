@@ -80,9 +80,9 @@ impl AimbotCheck {
                 findings.extend(self.check_mouse_delta(state, delta_yaw, delta_pitch, timestamp_ms));
             }
 
-            // Check zero point
+            // Check zero point - pass current yaw/pitch, not previous
             if self.config.check_zero_point {
-                findings.extend(self.check_zero_point(state, delta_yaw, delta_pitch, timestamp_ms));
+                findings.extend(self.check_zero_point(state, yaw, pitch, delta_yaw, timestamp_ms));
             }
         }
 
@@ -254,31 +254,32 @@ impl AimbotCheck {
     fn check_zero_point(
         &self,
         state: &mut PlayerState,
+        current_yaw: f32,
+        current_pitch: f32,
         delta_yaw: f32,
-        delta_pitch: f32,
         timestamp_ms: i64,
     ) -> Vec<Finding> {
         let mut findings = Vec::new();
 
         // Zero-point detection: aimbot may return to exact angles repeatedly
-        // Check if the player returns to suspiciously round angles
-        let yaw_fraction = state.aimbot.last_yaw.abs() % 1.0;
-        let pitch_fraction = state.aimbot.last_pitch.abs() % 1.0;
+        // Check if the player arrives at suspiciously round angles (current packet)
+        let yaw_fraction = current_yaw.abs() % 1.0;
+        let _pitch_fraction = current_pitch.abs() % 1.0;
 
-        // Exact integer angles are rare in normal play
+        // Exact integer angles are rare in normal play - check CURRENT angle, not previous
         if yaw_fraction < 0.001 && delta_yaw.abs() > 1.0 {
             findings.push(
                 Finding::new(
                     state.player_uuid,
                     FeatureId::AacAimbotZeroPoint,
-                    state.aimbot.last_yaw,
+                    current_yaw,
                     0.3,
                     false,
                     timestamp_ms,
                 )
                 .with_description(format!(
                     "Zero-point anchor at yaw {:.1}°",
-                    state.aimbot.last_yaw
+                    current_yaw
                 )),
             );
         }
