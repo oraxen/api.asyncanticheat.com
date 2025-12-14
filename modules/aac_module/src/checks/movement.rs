@@ -138,10 +138,8 @@ impl MovementCheck {
         // Track fall distance BEFORE updating last_location
         // (otherwise we'd compare new_loc to itself)
         if new_loc.on_ground {
-            if state.movement.fall_distance > 3.0 {
-                // Player landed after a fall
-                state.movement.fall_distance = 0.0;
-            }
+            // Player landed: reset fall distance regardless of magnitude to avoid small-fall accumulation.
+            state.movement.fall_distance = 0.0;
             state.movement.last_ground_y = new_loc.y;
         } else if let Some(last) = state.movement.last_location {
             if new_loc.y < last.y {
@@ -280,7 +278,8 @@ impl MovementCheck {
             let vel_age_ms = timestamp_ms - state.movement.velocity_received_ms;
             let max_vel_ms = (self.config.max_vel_time * 1000.0) as i64;
 
-            if vel_age_ms < max_vel_ms {
+            // Out-of-order timestamps: don't apply velocity checks to movement that predates the velocity.
+            if vel_age_ms >= 0 && vel_age_ms < max_vel_ms {
                 // Expected horizontal velocity effect
                 let expected_h = (vx * vx + vz * vz).sqrt();
                 

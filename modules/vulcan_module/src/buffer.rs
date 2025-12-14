@@ -84,7 +84,7 @@ impl CheckBuffer {
         if self.value > self.config.max {
             self.vl += 1;
             // Reset buffer after violation
-            self.value = self.config.max;
+            self.value = 0.0;
             true
         } else {
             false
@@ -99,7 +99,8 @@ impl CheckBuffer {
         
         if self.value > self.config.max {
             self.vl += 1;
-            self.value = self.config.max;
+            // Reset buffer after violation
+            self.value = 0.0;
             true
         } else {
             false
@@ -233,6 +234,8 @@ mod tests {
         // Fourth fail should trigger
         assert!(buffer.fail());
         assert_eq!(buffer.vl(), 1);
+        // After violation, buffer resets
+        assert_eq!(buffer.get(), 0.0);
     }
 
     #[test]

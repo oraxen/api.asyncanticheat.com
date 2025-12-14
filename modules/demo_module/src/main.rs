@@ -225,6 +225,8 @@ async fn ingest(
                         "prev_ts": prev.ts
                     })),
                 });
+                // Do not overwrite last-known position with out-of-order data.
+                continue;
             } else {
                 let dt = (ev.ts - prev.ts) as f64 / 1000.0;
                 if dt > 0.0 {

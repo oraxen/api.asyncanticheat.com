@@ -294,7 +294,10 @@ impl AutoclickerCheck {
     }
 
     fn handle_swing(&self, state: &mut PlayerState, _anim: &ArmAnimationPacket, timestamp_ms: i64) {
-        state.autoclicker.last_swing_ms = timestamp_ms;
+        // Out-of-order packets can arrive; don't move swing time backwards.
+        if timestamp_ms >= state.autoclicker.last_swing_ms {
+            state.autoclicker.last_swing_ms = timestamp_ms;
+        }
     }
 }
 

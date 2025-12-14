@@ -153,10 +153,12 @@ impl MiscCheck {
             }
         }
 
-        // Update state
-        state.misc.last_yaw = yaw;
-        state.misc.last_pitch = pitch;
-        state.misc.last_rotation_ms = timestamp_ms;
+        // Update state (monotonic guard; don't let out-of-order packets corrupt rotation state)
+        if timestamp_ms >= state.misc.last_rotation_ms {
+            state.misc.last_yaw = yaw;
+            state.misc.last_pitch = pitch;
+            state.misc.last_rotation_ms = timestamp_ms;
+        }
 
         findings
     }
