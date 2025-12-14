@@ -102,8 +102,8 @@ impl MovementCheck {
         state.movement.move_count += 1;
 
         // Timer check
-        if state.movement.timer_start_ms == 0 {
-            state.movement.timer_start_ms = timestamp_ms;
+        if state.movement.timer_start_ms.is_none() {
+            state.movement.timer_start_ms = Some(timestamp_ms);
         } else {
             findings.extend(self.check_timer(state, timestamp_ms));
         }
@@ -160,7 +160,20 @@ impl MovementCheck {
     fn check_timer(&self, state: &mut PlayerState, timestamp_ms: i64) -> Vec<Finding> {
         let mut findings = Vec::new();
 
-        let elapsed_ms = timestamp_ms - state.movement.timer_start_ms;
+        let Some(start_ms) = state.movement.timer_start_ms else {
+            state.movement.timer_start_ms = Some(timestamp_ms);
+            state.movement.move_count = 0;
+            return findings;
+        };
+
+        let elapsed_ms = timestamp_ms - start_ms;
+        // Out-of-order timestamps: reset the window instead of producing nonsense ratios.
+        if elapsed_ms <= 0 {
+            state.movement.timer_start_ms = Some(timestamp_ms);
+            state.movement.move_count = 0;
+            return findings;
+        }
+
         if elapsed_ms >= TIMER_WINDOW_MS {
             let expected_moves = (elapsed_ms as f64 / 1000.0) * EXPECTED_MOVES_PER_SECOND;
             let actual_moves = state.movement.move_count as f64;
@@ -192,7 +205,7 @@ impl MovementCheck {
 
             // Reset timer window
             state.movement.move_count = 0;
-            state.movement.timer_start_ms = timestamp_ms;
+            state.movement.timer_start_ms = Some(timestamp_ms);
         }
 
         findings

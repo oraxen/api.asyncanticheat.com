@@ -91,8 +91,8 @@ impl DelaysCheck {
                     let break_time = timestamp_ms - state.delays.last_break_start_ms;
 
                     // Check for impossibly fast break
-                    if break_time < BLOCK_BREAK_MIN_MS && self.config.fast_break {
-                        let ratio = BLOCK_BREAK_MIN_MS as f32 / break_time.max(1) as f32;
+                    if break_time > 0 && break_time < BLOCK_BREAK_MIN_MS && self.config.fast_break {
+                        let ratio = BLOCK_BREAK_MIN_MS as f32 / break_time as f32;
                         let mitigated = state.delays.vl.update(ratio - 1.0, timestamp_ms);
 
                         if ratio > 1.5 {
@@ -116,8 +116,8 @@ impl DelaysCheck {
                     // Check break delay (time since last break)
                     if state.delays.last_break_end_ms > 0 && self.config.break_delay {
                         let delay = timestamp_ms - state.delays.last_break_end_ms;
-                        if delay < BLOCK_BREAK_MIN_MS {
-                            let ratio = BLOCK_BREAK_MIN_MS as f32 / delay.max(1) as f32;
+                        if delay > 0 && delay < BLOCK_BREAK_MIN_MS {
+                            let ratio = BLOCK_BREAK_MIN_MS as f32 / delay as f32;
                             let mitigated = state.delays.vl.update(ratio - 1.0, timestamp_ms);
 
                             if ratio > 1.5 {
@@ -133,7 +133,10 @@ impl DelaysCheck {
                         }
                     }
 
-                    state.delays.last_break_end_ms = timestamp_ms;
+                    // Avoid moving backwards on out-of-order timestamps
+                    if timestamp_ms > state.delays.last_break_end_ms {
+                        state.delays.last_break_end_ms = timestamp_ms;
+                    }
                 }
                 state.delays.breaking_block = None;
             }
@@ -157,8 +160,8 @@ impl DelaysCheck {
         if state.delays.last_place_ms > 0 {
             let delay = timestamp_ms - state.delays.last_place_ms;
 
-            if delay < BLOCK_PLACE_MIN_MS {
-                let ratio = BLOCK_PLACE_MIN_MS as f32 / delay.max(1) as f32;
+            if delay > 0 && delay < BLOCK_PLACE_MIN_MS {
+                let ratio = BLOCK_PLACE_MIN_MS as f32 / delay as f32;
                 let mitigated = state.delays.vl.update(ratio - 1.0, timestamp_ms);
 
                 if ratio > 2.0 {
@@ -180,7 +183,10 @@ impl DelaysCheck {
             }
         }
 
-        state.delays.last_place_ms = timestamp_ms;
+        // Avoid moving backwards on out-of-order timestamps
+        if timestamp_ms > state.delays.last_place_ms {
+            state.delays.last_place_ms = timestamp_ms;
+        }
         findings
     }
 
@@ -191,8 +197,8 @@ impl DelaysCheck {
             let delay = timestamp_ms - state.delays.last_use_ms;
 
             // Item use (eating) should take ~32 ticks = 1600ms
-            if delay < ITEM_USE_MIN_MS {
-                let ratio = ITEM_USE_MIN_MS as f32 / delay.max(1) as f32;
+            if delay > 0 && delay < ITEM_USE_MIN_MS {
+                let ratio = ITEM_USE_MIN_MS as f32 / delay as f32;
                 let mitigated = state.delays.vl.update(ratio - 1.0, timestamp_ms);
 
                 if ratio > 1.5 {
@@ -214,7 +220,10 @@ impl DelaysCheck {
             }
         }
 
-        state.delays.last_use_ms = timestamp_ms;
+        // Avoid moving backwards on out-of-order timestamps
+        if timestamp_ms > state.delays.last_use_ms {
+            state.delays.last_use_ms = timestamp_ms;
+        }
         findings
     }
 
@@ -230,8 +239,8 @@ impl DelaysCheck {
         if !sneak.sneaking && state.delays.last_sneak_ms > 0 {
             let delay = timestamp_ms - state.delays.last_sneak_ms;
 
-            if delay < SNEAK_MIN_MS {
-                let ratio = SNEAK_MIN_MS as f32 / delay.max(1) as f32;
+            if delay > 0 && delay < SNEAK_MIN_MS {
+                let ratio = SNEAK_MIN_MS as f32 / delay as f32;
                 let mitigated = state.delays.vl.update(ratio - 1.0, timestamp_ms);
 
                 if ratio > 2.0 {
@@ -248,7 +257,10 @@ impl DelaysCheck {
         }
 
         if sneak.sneaking {
-            state.delays.last_sneak_ms = timestamp_ms;
+            // Avoid moving backwards on out-of-order timestamps
+            if timestamp_ms > state.delays.last_sneak_ms {
+                state.delays.last_sneak_ms = timestamp_ms;
+            }
         }
 
         findings

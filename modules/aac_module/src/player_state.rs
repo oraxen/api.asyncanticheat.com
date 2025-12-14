@@ -116,7 +116,7 @@ pub struct MoveState {
     pub velocity_received_ms: i64,
     // Timer tracking
     pub move_count: u32,
-    pub timer_start_ms: i64,
+    pub timer_start_ms: Option<i64>,
     // Special states
     pub in_vehicle: bool,
     pub using_elytra: bool,
@@ -142,7 +142,7 @@ impl MoveState {
             pending_velocity: None,
             velocity_received_ms: 0,
             move_count: 0,
-            timer_start_ms: 0,
+            timer_start_ms: None,
             in_vehicle: false,
             using_elytra: false,
             in_water: false,

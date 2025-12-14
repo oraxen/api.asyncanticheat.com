@@ -115,6 +115,11 @@ impl AimbotCheck {
     ) -> Vec<Finding> {
         let mut findings = Vec::new();
 
+        // Out-of-order / duplicate timestamps: ignore to avoid false head snap findings.
+        if time_delta <= 0 {
+            return findings;
+        }
+
         let total_delta = (delta_yaw.powi(2) + delta_pitch.powi(2)).sqrt();
 
         // Check for sudden large rotation

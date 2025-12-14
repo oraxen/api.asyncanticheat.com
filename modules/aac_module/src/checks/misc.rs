@@ -189,6 +189,9 @@ impl MiscCheck {
                     .with_description("Flying without permission".to_string()),
                 );
             }
+        } else if state.misc.invalid_abilities_flagged {
+            // Condition cleared: reset so future invalid states can be detected again.
+            state.misc.invalid_abilities_flagged = false;
         }
 
         // Instant break without proper game mode
