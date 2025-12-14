@@ -220,12 +220,11 @@ impl AutoclickerState {
 #[derive(Debug, Clone)]
 pub struct HitboxState {
     pub vl: ViolationLevel,
-    // Hit tracking
-    pub hits: u32,
-    pub misses: u32,
+    // Attack tracking (note: we only see attack attempts, not confirmed hits)
+    pub attacks: u32,
     // Reach samples
     pub reach_samples: VecDeque<f64>,
-    pub last_hit_ms: i64,
+    pub last_attack_ms: i64,
     // Target tracking
     pub last_target_id: Option<i32>,
     pub last_target_distance: f64,
@@ -235,10 +234,9 @@ impl HitboxState {
     pub fn new(config: &AacConfig) -> Self {
         Self {
             vl: ViolationLevel::new(config.hitbox.vl.clone()),
-            hits: 0,
-            misses: 0,
+            attacks: 0,
             reach_samples: VecDeque::with_capacity(10),
-            last_hit_ms: 0,
+            last_attack_ms: 0,
             last_target_id: None,
             last_target_distance: 0.0,
         }
@@ -344,6 +342,16 @@ impl PlayerState {
         current_ms - self.last_update_ms > timeout_ms
     }
 
+    /// Update VL configurations when runtime config changes
+    /// This ensures existing players get the new threshold/decay/mitigation settings
+    pub fn update_config(&mut self, config: &AacConfig) {
+        self.delays.vl.update_config(config.delays.vl.clone());
+        self.movement.distance_vl.update_config(config.r#move.vl.clone());
+        self.movement.timer_vl.update_config(config.r#move.timer.clone());
+        self.hitbox.vl.update_config(config.hitbox.vl.clone());
+        self.interact.vl.update_config(config.interact.vl.clone());
+    }
+
     /// Serialize state for persistence
     pub fn to_json(&self) -> serde_json::Value {
         serde_json::json!({
@@ -366,8 +374,7 @@ impl PlayerState {
                 "attacks_without_swing": self.autoclicker.attacks_without_swing,
             },
             "hitbox": {
-                "hits": self.hitbox.hits,
-                "misses": self.hitbox.misses,
+                "attacks": self.hitbox.attacks,
             },
         })
     }

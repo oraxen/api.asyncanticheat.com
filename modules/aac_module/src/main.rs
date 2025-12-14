@@ -52,7 +52,8 @@ struct ModuleConfig {
 impl ModuleConfig {
     fn from_env() -> Self {
         Self {
-            api_url: std::env::var("API_URL").unwrap_or_else(|_| "http://localhost:3002".to_string()),
+            api_url: std::env::var("API_URL")
+                .unwrap_or_else(|_| "http://localhost:3002".to_string()),
             callback_token: std::env::var("CALLBACK_TOKEN").unwrap_or_else(|_| "dev".to_string()),
             host: std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string()),
             port: std::env::var("PORT")
@@ -82,7 +83,7 @@ struct AppState {
 impl AppState {
     fn new(module_config: ModuleConfig) -> Self {
         let aac_config = AacConfig::default();
-        
+
         Self {
             aac_config: RwLock::new(aac_config),
             module_config,
@@ -96,7 +97,17 @@ impl AppState {
 
     /// Get fresh check instances using the current config
     /// This ensures config updates take effect immediately
-    async fn get_checks(&self) -> (DelaysCheck, MovementCheck, AimbotCheck, AutoclickerCheck, HitboxCheck, InteractCheck, MiscCheck) {
+    async fn get_checks(
+        &self,
+    ) -> (
+        DelaysCheck,
+        MovementCheck,
+        AimbotCheck,
+        AutoclickerCheck,
+        HitboxCheck,
+        InteractCheck,
+        MiscCheck,
+    ) {
         let config = self.aac_config.read().await;
         (
             DelaysCheck::new(config.delays.clone()),
@@ -185,10 +196,17 @@ async fn process_batch(
 
     // Read current config once - used for both checks and new player creation
     let current_config = state.aac_config.read().await.clone();
-    
+
     // Get fresh checks with current config (ensures config updates take effect)
-    let (delays_check, movement_check, aimbot_check, autoclicker_check, hitbox_check, interact_check, misc_check) = 
-        state.get_checks().await;
+    let (
+        delays_check,
+        movement_check,
+        aimbot_check,
+        autoclicker_check,
+        hitbox_check,
+        interact_check,
+        misc_check,
+    ) = state.get_checks().await;
 
     for packet_record in &request.packets {
         let parsed = packet_record.parse();
@@ -200,7 +218,12 @@ async fn process_batch(
         let timestamp_ms = packet_record.timestamp_ms;
 
         // Get or create player state with current config (not defaults)
-        let mut player_state = state.get_or_create_player(player_uuid, player_name.clone(), timestamp_ms, &current_config);
+        let mut player_state = state.get_or_create_player(
+            player_uuid,
+            player_name.clone(),
+            timestamp_ms,
+            &current_config,
+        );
         player_state.touch(timestamp_ms);
 
         // Run all enabled checks
@@ -228,7 +251,7 @@ async fn process_batch(
         let http_client = state.http_client.clone();
         let token = state.module_config.callback_token.clone();
         let server_id = request.server_id.clone();
-        
+
         // Build all callback requests upfront
         let callbacks: Vec<FindingCallbackRequest> = all_findings
             .into_iter()
@@ -293,8 +316,17 @@ async fn update_config(
     State(state): State<Arc<AppState>>,
     Json(new_config): Json<AacConfig>,
 ) -> Json<AacConfig> {
+    // Update the global config
     let mut config = state.aac_config.write().await;
     *config = new_config;
+
+    // Also update VL configs in existing player states so changes take effect immediately
+    // This ensures threshold/decay/mitigation settings apply to active players
+    for mut entry in state.player_states.iter_mut() {
+        entry.value_mut().update_config(&config);
+    }
+
+    info!("Config updated, applied to {} existing players", state.player_states.len());
     Json(config.clone())
 }
 
@@ -322,7 +354,7 @@ async fn get_player_states(State(state): State<Arc<AppState>>) -> Json<PlayerSta
 async fn cleanup_states(state: Arc<AppState>) {
     loop {
         tokio::time::sleep(Duration::from_secs(60)).await;
-        
+
         let now = chrono::Utc::now().timestamp_millis();
         let timeout = state.module_config.player_timeout_ms;
 
@@ -382,4 +414,3 @@ async fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
-

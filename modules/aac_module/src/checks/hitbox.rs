@@ -1,10 +1,10 @@
-//! Hitbox check (ch_0) - Combat validity for hits
+//! Hitbox check (ch_0) - Combat validity checks
 //!
 //! Detects:
 //! - Entity reach (too far)
 //! - Line-of-sight / through walls
-//! - Hit/miss statistics
-//! - Looking at the entity they hit
+//! - Attack pattern analysis
+//! - Invalid hitbox click positions
 
 use crate::config::HitboxConfig;
 use crate::findings::{FeatureId, Finding};
@@ -58,9 +58,9 @@ impl HitboxCheck {
     ) -> Vec<Finding> {
         let mut findings = Vec::new();
 
-        // Track hit for statistics
-        state.hitbox.hits += 1;
-        state.hitbox.last_hit_ms = timestamp_ms;
+        // Track attack attempt (note: this is an attempt, not a confirmed hit)
+        state.hitbox.attacks += 1;
+        state.hitbox.last_attack_ms = timestamp_ms;
         state.hitbox.last_target_id = Some(use_entity.entity_id);
 
         // If we have target coordinates (from INTERACT_AT), check hitbox offset validity
@@ -107,48 +107,23 @@ impl HitboxCheck {
         findings
     }
 
-    fn check_hit_patterns(&self, state: &mut PlayerState, timestamp_ms: i64) -> Vec<Finding> {
-        let mut findings = Vec::new();
-
-        // Check for suspicious hit rate (too many hits in short time)
-        // This is a simplified version; full implementation would track combat sessions
+    fn check_hit_patterns(&self, state: &mut PlayerState, _timestamp_ms: i64) -> Vec<Finding> {
+        // NOTE: We only see attack ATTEMPTS (USE_ENTITY ATTACK packets), not confirmed hits.
+        // The server doesn't send us hit confirmation, so we can't calculate actual hit/miss ratio.
+        // Previous implementation incorrectly treated all attacks as hits, giving 100% "accuracy".
+        //
+        // For actual hit/miss statistics, we would need:
+        // 1. Server-side damage events (not available via packets)
+        // 2. Or correlation with entity health changes (complex, unreliable)
+        //
+        // Attack timing/pattern analysis can still be useful for detecting autoclickers
+        // but that's handled in the autoclicker check.
         
-        let total_attacks = state.hitbox.hits + state.hitbox.misses;
-        if total_attacks >= 20 {
-            let hit_ratio = state.hitbox.hits as f32 / total_attacks as f32;
-            
-            // Very high hit ratio is suspicious (100% accuracy over many hits)
-            if hit_ratio > 0.95 && state.hitbox.hits >= 20 {
-                findings.push(
-                    Finding::new(
-                        state.player_uuid,
-                        FeatureId::AacHitboxCount,
-                        state.hitbox.hits as f32,
-                        0.6,
-                        false,
-                        timestamp_ms,
-                    )
-                    .with_description(format!(
-                        "Suspicious accuracy: {:.0}% ({}/{})",
-                        hit_ratio * 100.0,
-                        state.hitbox.hits,
-                        total_attacks
-                    )),
-                );
-            }
-        }
-
-        findings
+        Vec::new()
     }
 
-    // Removed reach_samples analysis - it was using hitbox offsets (relative positions)
-    // as if they were reach distances (absolute distances), producing meaningless results.
+    // Removed misleading hit/miss tracking - we can only see attack attempts, not results.
     // Actual reach detection requires tracking both player and entity positions,
     // which is done in the ncp_fight_v1 transform.
-
-    /// Record a miss (called when attack doesn't hit)
-    pub fn record_miss(&self, state: &mut PlayerState) {
-        state.hitbox.misses += 1;
-    }
 }
 

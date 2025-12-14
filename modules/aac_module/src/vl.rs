@@ -76,6 +76,18 @@ impl ViolationLevel {
         &self.config
     }
 
+    /// Update the configuration (for runtime config changes)
+    /// Preserves current VL value, only updates config parameters
+    pub fn update_config(&mut self, new_config: VlConfig) {
+        // Enforce minimum max of 1.0
+        self.config = VlConfig {
+            max: new_config.max.max(1.0),
+            ..new_config
+        };
+        // Clamp current VL to new max
+        self.vl = self.vl.clamp(0.0, self.config.max);
+    }
+
     /// Apply passive decay without adding violation
     pub fn decay(&mut self, current_time_ms: i64) {
         self.update(0.0, current_time_ms);
