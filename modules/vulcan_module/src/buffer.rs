@@ -74,11 +74,12 @@ impl CheckBuffer {
     /// Called when check fails - increments buffer
     /// Returns true if violation should be flagged
     pub fn fail(&mut self) -> bool {
-        // Add 1.0 to buffer, then apply multiple as retention factor for previous value
-        // Formula: new = old * multiple + 1.0
-        // With multiple=0.5: 0*0.5+1=1, 1*0.5+1=1.5, 1.5*0.5+1=1.75, etc. -> converges to 2.0
-        // This allows the buffer to grow past thresholds with sustained failures
-        self.value = self.value * self.config.multiple + 1.0;
+        // Vulcan-style: increment buffer by a scaled amount.
+        //
+        // Important: using (value + 1.0) * multiple (or value * multiple + 1.0) with multiple < 1.0
+        // converges to a small limit and may never reach config.max, effectively disabling violations
+        // for typical presets. Instead, treat `multiple` as the fail increment scalar.
+        self.value += self.config.multiple;
         
         if self.value > self.config.max {
             self.vl += 1;
@@ -93,7 +94,8 @@ impl CheckBuffer {
     /// Called when check fails with a specific increment
     /// Returns true if violation should be flagged
     pub fn fail_with(&mut self, increment: f64) -> bool {
-        self.value += increment;
+        // Scale increment by the same factor as `fail()`.
+        self.value += increment.max(0.0) * self.config.multiple;
         
         if self.value > self.config.max {
             self.vl += 1;
