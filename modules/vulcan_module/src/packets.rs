@@ -191,27 +191,40 @@ pub enum ParsedPacket {
 impl PacketRecord {
     pub fn parse(&self) -> ParsedPacket {
         match self.packet_type.as_str() {
-            "POSITION" | "FLYING_POSITION" => {
+            // PacketEvents names (modern)
+            "PLAYER_POSITION" | "PLAYER_FLYING_POSITION"
+            // Legacy/normalized names
+            | "POSITION" | "FLYING_POSITION" => {
                 serde_json::from_value(self.data.clone())
                     .map(ParsedPacket::Position)
                     .unwrap_or(ParsedPacket::Unknown(self.packet_type.clone()))
             }
-            "LOOK" | "FLYING_LOOK" => {
+            // PacketEvents names (modern)
+            "PLAYER_ROTATION" | "PLAYER_FLYING_LOOK"
+            // Legacy/normalized names
+            | "LOOK" | "FLYING_LOOK" => {
                 serde_json::from_value(self.data.clone())
                     .map(ParsedPacket::Look)
                     .unwrap_or(ParsedPacket::Unknown(self.packet_type.clone()))
             }
-            "POSITION_LOOK" | "FLYING_POSITION_LOOK" => {
+            // PacketEvents names (modern)
+            "PLAYER_POSITION_AND_ROTATION" | "PLAYER_POSITION_AND_LOOK" | "PLAYER_FLYING_POSITION_AND_LOOK"
+            // Legacy/normalized names
+            | "POSITION_LOOK" | "FLYING_POSITION_LOOK" => {
                 serde_json::from_value(self.data.clone())
                     .map(ParsedPacket::PositionLook)
                     .unwrap_or(ParsedPacket::Unknown(self.packet_type.clone()))
             }
-            "FLYING" => {
+            // PacketEvents name for bare flying packet
+            "PLAYER_FLYING"
+            // Legacy/normalized name
+            | "FLYING" => {
                 serde_json::from_value(self.data.clone())
                     .map(ParsedPacket::Flying)
                     .unwrap_or(ParsedPacket::Unknown(self.packet_type.clone()))
             }
-            "USE_ENTITY" => {
+            // PacketEvents uses INTERACT_ENTITY in many protocol versions.
+            "USE_ENTITY" | "INTERACT_ENTITY" => {
                 serde_json::from_value(self.data.clone())
                     .map(ParsedPacket::UseEntity)
                     .unwrap_or(ParsedPacket::Unknown(self.packet_type.clone()))
@@ -226,12 +239,12 @@ impl PacketRecord {
                     .map(ParsedPacket::EntityVelocity)
                     .unwrap_or(ParsedPacket::Unknown(self.packet_type.clone()))
             }
-            "BLOCK_DIG" => {
+            "BLOCK_DIG" | "PLAYER_DIGGING" => {
                 serde_json::from_value(self.data.clone())
                     .map(ParsedPacket::BlockDig)
                     .unwrap_or(ParsedPacket::Unknown(self.packet_type.clone()))
             }
-            "BLOCK_PLACE" | "USE_ITEM" => {
+            "BLOCK_PLACE" | "PLAYER_BLOCK_PLACEMENT" | "USE_ITEM" => {
                 serde_json::from_value(self.data.clone())
                     .map(ParsedPacket::BlockPlace)
                     .unwrap_or(ParsedPacket::Unknown(self.packet_type.clone()))
@@ -246,7 +259,7 @@ impl PacketRecord {
                     .map(ParsedPacket::HeldItemSlot)
                     .unwrap_or(ParsedPacket::Unknown(self.packet_type.clone()))
             }
-            "ABILITIES" => {
+            "ABILITIES" | "PLAYER_ABILITIES" => {
                 serde_json::from_value(self.data.clone())
                     .map(ParsedPacket::Abilities)
                     .unwrap_or(ParsedPacket::Unknown(self.packet_type.clone()))

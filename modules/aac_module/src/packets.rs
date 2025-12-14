@@ -144,28 +144,38 @@ impl PacketRecord {
     /// Parse the packet data into a typed variant
     pub fn parse(&self) -> ParsedPacket {
         match self.packet_type.as_str() {
-            "POSITION" | "FLYING_POSITION" => {
+            // PacketEvents names (modern)
+            "PLAYER_POSITION" | "PLAYER_FLYING_POSITION"
+            // Legacy/normalized names
+            | "POSITION" | "FLYING_POSITION" => {
                 if let Ok(p) = serde_json::from_value(self.data.clone()) {
                     ParsedPacket::Position(p)
                 } else {
                     ParsedPacket::Unknown(self.packet_type.clone())
                 }
             }
-            "LOOK" | "FLYING_LOOK" => {
+            // PacketEvents names (modern)
+            "PLAYER_ROTATION" | "PLAYER_FLYING_LOOK"
+            // Legacy/normalized names
+            | "LOOK" | "FLYING_LOOK" => {
                 if let Ok(p) = serde_json::from_value(self.data.clone()) {
                     ParsedPacket::Look(p)
                 } else {
                     ParsedPacket::Unknown(self.packet_type.clone())
                 }
             }
-            "POSITION_LOOK" | "FLYING_POSITION_LOOK" => {
+            // PacketEvents names (modern)
+            "PLAYER_POSITION_AND_ROTATION" | "PLAYER_POSITION_AND_LOOK" | "PLAYER_FLYING_POSITION_AND_LOOK"
+            // Legacy/normalized names
+            | "POSITION_LOOK" | "FLYING_POSITION_LOOK" => {
                 if let Ok(p) = serde_json::from_value(self.data.clone()) {
                     ParsedPacket::PositionLook(p)
                 } else {
                     ParsedPacket::Unknown(self.packet_type.clone())
                 }
             }
-            "USE_ENTITY" => {
+            // PacketEvents uses INTERACT_ENTITY in many protocol versions.
+            "USE_ENTITY" | "INTERACT_ENTITY" => {
                 if let Ok(p) = serde_json::from_value(self.data.clone()) {
                     ParsedPacket::UseEntity(p)
                 } else {
@@ -186,14 +196,14 @@ impl PacketRecord {
                     ParsedPacket::Unknown(self.packet_type.clone())
                 }
             }
-            "BLOCK_DIG" => {
+            "BLOCK_DIG" | "PLAYER_DIGGING" => {
                 if let Ok(p) = serde_json::from_value(self.data.clone()) {
                     ParsedPacket::BlockDig(p)
                 } else {
                     ParsedPacket::Unknown(self.packet_type.clone())
                 }
             }
-            "BLOCK_PLACE" => {
+            "BLOCK_PLACE" | "PLAYER_BLOCK_PLACEMENT" => {
                 if let Ok(p) = serde_json::from_value(self.data.clone()) {
                     ParsedPacket::BlockPlace(p)
                 } else {
@@ -223,7 +233,7 @@ impl PacketRecord {
                 }
                 ParsedPacket::Unknown(self.packet_type.clone())
             }
-            "ABILITIES" => {
+            "ABILITIES" | "PLAYER_ABILITIES" => {
                 if let Ok(p) = serde_json::from_value(self.data.clone()) {
                     ParsedPacket::Abilities(p)
                 } else {
