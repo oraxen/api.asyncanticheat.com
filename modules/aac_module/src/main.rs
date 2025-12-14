@@ -69,20 +69,12 @@ impl ModuleConfig {
 
 /// Application state
 struct AppState {
-    /// AAC configuration
+    /// AAC configuration (shared, can be updated at runtime)
     aac_config: RwLock<AacConfig>,
     /// Module configuration
     module_config: ModuleConfig,
     /// Per-player state
     player_states: DashMap<Uuid, PlayerState>,
-    /// Checks
-    delays_check: DelaysCheck,
-    movement_check: MovementCheck,
-    aimbot_check: AimbotCheck,
-    autoclicker_check: AutoclickerCheck,
-    hitbox_check: HitboxCheck,
-    interact_check: InteractCheck,
-    misc_check: MiscCheck,
     /// HTTP client for callbacks
     http_client: reqwest::Client,
 }
@@ -92,13 +84,6 @@ impl AppState {
         let aac_config = AacConfig::default();
         
         Self {
-            delays_check: DelaysCheck::new(aac_config.delays.clone()),
-            movement_check: MovementCheck::new(aac_config.r#move.clone()),
-            aimbot_check: AimbotCheck::new(aac_config.aimbot.clone()),
-            autoclicker_check: AutoclickerCheck::new(aac_config.autoclicker.clone()),
-            hitbox_check: HitboxCheck::new(aac_config.hitbox.clone()),
-            interact_check: InteractCheck::new(aac_config.interact.clone()),
-            misc_check: MiscCheck::new(aac_config.misc.clone()),
             aac_config: RwLock::new(aac_config),
             module_config,
             player_states: DashMap::new(),
@@ -107,6 +92,21 @@ impl AppState {
                 .build()
                 .unwrap(),
         }
+    }
+
+    /// Get fresh check instances using the current config
+    /// This ensures config updates take effect immediately
+    async fn get_checks(&self) -> (DelaysCheck, MovementCheck, AimbotCheck, AutoclickerCheck, HitboxCheck, InteractCheck, MiscCheck) {
+        let config = self.aac_config.read().await;
+        (
+            DelaysCheck::new(config.delays.clone()),
+            MovementCheck::new(config.r#move.clone()),
+            AimbotCheck::new(config.aimbot.clone()),
+            AutoclickerCheck::new(config.autoclicker.clone()),
+            HitboxCheck::new(config.hitbox.clone()),
+            InteractCheck::new(config.interact.clone()),
+            MiscCheck::new(config.misc.clone()),
+        )
     }
 
     async fn get_or_create_player(&self, player_uuid: Uuid, player_name: String, timestamp_ms: i64) -> dashmap::mapref::one::RefMut<'_, Uuid, PlayerState> {
@@ -180,6 +180,10 @@ async fn process_batch(
         request.batch_id, packets_count, request.server_id
     );
 
+    // Get fresh checks with current config (ensures config updates take effect)
+    let (delays_check, movement_check, aimbot_check, autoclicker_check, hitbox_check, interact_check, misc_check) = 
+        state.get_checks().await;
+
     for packet_record in &request.packets {
         let parsed = packet_record.parse();
         let player_uuid = packet_record.player_uuid;
@@ -196,13 +200,13 @@ async fn process_batch(
         // Run all enabled checks
         let mut findings = Vec::new();
 
-        findings.extend(state.delays_check.process(&mut player_state, &parsed, timestamp_ms));
-        findings.extend(state.movement_check.process(&mut player_state, &parsed, timestamp_ms));
-        findings.extend(state.aimbot_check.process(&mut player_state, &parsed, timestamp_ms));
-        findings.extend(state.autoclicker_check.process(&mut player_state, &parsed, timestamp_ms));
-        findings.extend(state.hitbox_check.process(&mut player_state, &parsed, timestamp_ms));
-        findings.extend(state.interact_check.process(&mut player_state, &parsed, timestamp_ms));
-        findings.extend(state.misc_check.process(&mut player_state, &parsed, timestamp_ms));
+        findings.extend(delays_check.process(&mut player_state, &parsed, timestamp_ms));
+        findings.extend(movement_check.process(&mut player_state, &parsed, timestamp_ms));
+        findings.extend(aimbot_check.process(&mut player_state, &parsed, timestamp_ms));
+        findings.extend(autoclicker_check.process(&mut player_state, &parsed, timestamp_ms));
+        findings.extend(hitbox_check.process(&mut player_state, &parsed, timestamp_ms));
+        findings.extend(interact_check.process(&mut player_state, &parsed, timestamp_ms));
+        findings.extend(misc_check.process(&mut player_state, &parsed, timestamp_ms));
 
         for finding in findings {
             all_findings.push((finding, player_name.clone()));

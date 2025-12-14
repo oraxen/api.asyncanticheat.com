@@ -191,20 +191,25 @@ impl PacketRecord {
                     ParsedPacket::Unknown(self.packet_type.clone())
                 }
             }
-            "BLOCK_PLACE" | "USE_ITEM" => {
+            "BLOCK_PLACE" => {
                 if let Ok(p) = serde_json::from_value(self.data.clone()) {
                     ParsedPacket::BlockPlace(p)
                 } else {
                     ParsedPacket::Unknown(self.packet_type.clone())
                 }
             }
-            "HELD_ITEM_SLOT" | "BLOCK_ITEM_SWITCH" => {
-                // Item use start
+            "USE_ITEM" => {
+                // USE_ITEM is for using items (eating, drinking, etc.), not block placement
                 if let Ok(p) = serde_json::from_value(self.data.clone()) {
                     ParsedPacket::ItemUse(p)
                 } else {
                     ParsedPacket::Unknown(self.packet_type.clone())
                 }
+            }
+            "HELD_ITEM_SLOT" | "BLOCK_ITEM_SWITCH" => {
+                // These are hotbar slot changes, not item usage - treat as unknown for now
+                // since they don't map to ItemUse semantics
+                ParsedPacket::Unknown(self.packet_type.clone())
             }
             "ENTITY_ACTION" => {
                 // Check for sneak action

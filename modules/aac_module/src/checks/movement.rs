@@ -127,12 +127,8 @@ impl MovementCheck {
             findings.extend(self.check_generic_movement(state, h_dist, timestamp_ms));
         }
 
-        // Update state
-        state.movement.last_location = Some(new_loc);
-        state.movement.last_on_ground = new_loc.on_ground;
-        state.movement.last_move_ms = timestamp_ms;
-
-        // Track fall distance
+        // Track fall distance BEFORE updating last_location
+        // (otherwise we'd compare new_loc to itself)
         if new_loc.on_ground {
             if state.movement.fall_distance > 3.0 {
                 // Player landed after a fall
@@ -144,6 +140,11 @@ impl MovementCheck {
                 state.movement.fall_distance += last.y - new_loc.y;
             }
         }
+
+        // Update state after fall distance tracking
+        state.movement.last_location = Some(new_loc);
+        state.movement.last_on_ground = new_loc.on_ground;
+        state.movement.last_move_ms = timestamp_ms;
 
         findings
     }
@@ -380,7 +381,8 @@ impl MovementCheck {
         };
 
         if h_dist > max_speed {
-            let ratio = h_dist / MAX_SPRINT_SPEED;
+            // Use the same max_speed for ratio calculation to avoid inflated values
+            let ratio = h_dist / max_speed;
             let mitigated = state.movement.distance_vl.update((ratio - 1.0) as f32, timestamp_ms);
 
             if ratio > 1.5 {
@@ -395,7 +397,7 @@ impl MovementCheck {
                     )
                     .with_description(format!(
                         "Horizontal speed {:.2} b/t (max {:.2})",
-                        h_dist, MAX_SPRINT_SPEED
+                        h_dist, max_speed
                     )),
                 );
             }

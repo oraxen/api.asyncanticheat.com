@@ -251,6 +251,11 @@ impl AutoclickerCheck {
     fn check_noswing(&self, state: &mut PlayerState, timestamp_ms: i64) -> Vec<Finding> {
         let mut findings = Vec::new();
 
+        // Skip check if we haven't seen any swing yet (avoid false positives on startup)
+        if state.autoclicker.last_swing_ms == 0 {
+            return findings;
+        }
+
         // Check if attack happened without recent swing
         let swing_age = timestamp_ms - state.autoclicker.last_swing_ms;
         

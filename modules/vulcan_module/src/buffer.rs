@@ -74,8 +74,8 @@ impl CheckBuffer {
     /// Called when check fails - increments buffer
     /// Returns true if violation should be flagged
     pub fn fail(&mut self) -> bool {
-        // Increment buffer by 1, then multiply
-        self.value = (self.value + 1.0) * self.config.multiple.max(1.0);
+        // Increment buffer by 1, then apply multiplier (multiplier < 1.0 dampens growth)
+        self.value = (self.value + 1.0) * self.config.multiple;
         
         if self.value > self.config.max {
             self.vl += 1;

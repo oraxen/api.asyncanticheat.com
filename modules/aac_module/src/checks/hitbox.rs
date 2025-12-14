@@ -63,66 +63,43 @@ impl HitboxCheck {
         state.hitbox.last_hit_ms = timestamp_ms;
         state.hitbox.last_target_id = Some(use_entity.entity_id);
 
-        // If we have target coordinates (from interact_at), check reach
+        // If we have target coordinates (from INTERACT_AT), check hitbox offset validity
+        // NOTE: These are RELATIVE offsets from the entity's origin, NOT absolute positions!
+        // They represent where on the entity's hitbox the player clicked.
+        // For ATTACK actions, these should be within the entity's hitbox bounds (~1-2 blocks).
         if let (Some(tx), Some(ty), Some(tz)) = (use_entity.target_x, use_entity.target_y, use_entity.target_z) {
-            // We need player position to calculate reach
-            // For now, we store the target and check reach indirectly
+            // This is the click offset relative to entity origin, NOT reach distance
+            // Normal values: -1.0 to 2.0 (depending on entity size and hitbox)
+            let hitbox_offset = (tx * tx + ty * ty + tz * tz).sqrt();
             
-            // Check if the target position is reasonable
-            // In vanilla, these are offsets from entity origin, should be within entity hitbox
-            let target_distance = (tx * tx + ty * ty + tz * tz).sqrt();
-            
-            // INTERACT_AT coordinates are relative to entity, so large values are suspicious
-            if target_distance > 2.0 {
-                // Suspicious target position
+            // Hitbox offsets > 2.0 are suspicious (player-sized entity is ~0.6x1.8)
+            // This detects invalid click positions, not reach
+            if hitbox_offset > 2.0 {
                 findings.push(
                     Finding::new(
                         state.player_uuid,
-                        FeatureId::AacHitboxReach,
-                        target_distance as f32,
+                        FeatureId::AacHitboxInvalid,
+                        hitbox_offset as f32,
                         0.5,
                         false,
                         timestamp_ms,
                     )
                     .with_description(format!(
-                        "Suspicious target offset: {:.2} blocks",
-                        target_distance
+                        "Invalid hitbox offset: {:.2} (expected < 2.0)",
+                        hitbox_offset
                     )),
                 );
             }
 
-            state.hitbox.last_target_distance = target_distance;
-            state.hitbox.reach_samples.push_back(target_distance);
-            if state.hitbox.reach_samples.len() > 10 {
-                state.hitbox.reach_samples.pop_front();
-            }
+            state.hitbox.last_target_distance = hitbox_offset;
+            // Note: We're NOT storing these as "reach samples" since they're offsets, not distances
         }
 
-        // Analyze reach patterns if we have enough samples
-        if state.hitbox.reach_samples.len() >= 5 {
-            let avg_reach: f64 = state.hitbox.reach_samples.iter().sum::<f64>() 
-                / state.hitbox.reach_samples.len() as f64;
-            
-            // High average reach is suspicious
-            if avg_reach > MAX_REACH_WITH_LAG {
-                let mitigated = state.hitbox.vl.update(1.0, timestamp_ms);
-                
-                findings.push(
-                    Finding::new(
-                        state.player_uuid,
-                        FeatureId::AacHitboxReach,
-                        avg_reach as f32,
-                        state.hitbox.vl.get(),
-                        mitigated,
-                        timestamp_ms,
-                    )
-                    .with_description(format!(
-                        "Average reach: {:.2} blocks (max: {:.1})",
-                        avg_reach, MAX_REACH_WITH_LAG
-                    )),
-                );
-            }
-        }
+        // For actual reach detection, we would need:
+        // 1. Player position (from movement packets)
+        // 2. Target entity position (from entity tracking)
+        // 3. Calculate actual distance between them
+        // This is done in the ncp_fight_v1 transform which has access to both
 
         // Check hit count patterns
         findings.extend(self.check_hit_patterns(state, timestamp_ms));
@@ -163,6 +140,11 @@ impl HitboxCheck {
 
         findings
     }
+
+    // Removed reach_samples analysis - it was using hitbox offsets (relative positions)
+    // as if they were reach distances (absolute distances), producing meaningless results.
+    // Actual reach detection requires tracking both player and entity positions,
+    // which is done in the ncp_fight_v1 transform.
 
     /// Record a miss (called when attack doesn't hit)
     pub fn record_miss(&self, state: &mut PlayerState) {

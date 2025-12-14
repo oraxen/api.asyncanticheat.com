@@ -53,6 +53,7 @@ pub enum FeatureId {
     AacHitboxMiss,
     AacHitboxWalls,
     AacHitboxReach,
+    AacHitboxInvalid,
 
     // Interact
     AacInteractGen,
@@ -113,6 +114,7 @@ impl FeatureId {
             Self::AacHitboxMiss => "aac_hitbox_miss",
             Self::AacHitboxWalls => "aac_hitbox_walls",
             Self::AacHitboxReach => "aac_hitbox_reach",
+            Self::AacHitboxInvalid => "aac_hitbox_invalid",
 
             // Interact
             Self::AacInteractGen => "aac_interact_generic",
@@ -167,7 +169,8 @@ impl FeatureId {
             Self::AacHitboxCount
             | Self::AacHitboxMiss
             | Self::AacHitboxWalls
-            | Self::AacHitboxReach => "hitbox",
+            | Self::AacHitboxReach
+            | Self::AacHitboxInvalid => "hitbox",
 
             Self::AacInteractGen
             | Self::AacInteractBreak
@@ -309,6 +312,7 @@ impl Finding {
             FeatureId::AacHitboxMiss => format!("Miss ratio: {:.1}%", value * 100.0),
             FeatureId::AacHitboxWalls => "Hit through walls".to_string(),
             FeatureId::AacHitboxReach => format!("Reach: {:.2} blocks", value),
+            FeatureId::AacHitboxInvalid => format!("Invalid hitbox offset: {:.2}", value),
 
             FeatureId::AacInteractGen => format!("Invalid interact: {:.2}°", value),
             FeatureId::AacInteractBreak => format!("Invalid break angle: {:.2}°", value),
