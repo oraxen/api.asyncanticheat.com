@@ -217,46 +217,56 @@ impl MiscCheck {
         timestamp_ms: i64,
         findings: &mut Vec<Finding>,
     ) {
-        if state.misc.window_start_ms == 0 {
-            state.misc.window_start_ms = timestamp_ms;
-            return;
+        if state.misc.short_window_start_ms == 0 {
+            state.misc.short_window_start_ms = timestamp_ms;
+        }
+        if state.misc.medium_window_start_ms == 0 {
+            state.misc.medium_window_start_ms = timestamp_ms;
+        }
+        if state.misc.long_window_start_ms == 0 {
+            state.misc.long_window_start_ms = timestamp_ms;
         }
 
-        let elapsed = timestamp_ms - state.misc.window_start_ms;
-
-        // Short window check (1 second)
-        // Calculate how many complete short windows have passed
-        let short_windows_elapsed = elapsed / SHORT_WINDOW_MS;
-        if short_windows_elapsed > 0 && state.misc.short_window_count > 0 {
-            // Emit rate normalized to per-second
-            let rate = state.misc.short_window_count as f32;
-            
-            if rate > 10.0 {
-                findings.push(
-                    Finding::new(
-                        state.player_uuid,
-                        FeatureId::AacMiscRotation,
-                        rate,
-                        rate / 20.0,
-                        false,
-                        timestamp_ms,
-                    )
-                    .with_description(format!(
-                        "High rotation anomalies: {} in 1s",
-                        state.misc.short_window_count
-                    )),
-                );
+        // Short window (1s bucket)
+        let short_elapsed = timestamp_ms - state.misc.short_window_start_ms;
+        if short_elapsed >= SHORT_WINDOW_MS {
+            if state.misc.short_window_count > 0 {
+                let rate = state.misc.short_window_count as f32;
+                if rate > 10.0 {
+                    findings.push(
+                        Finding::new(
+                            state.player_uuid,
+                            FeatureId::AacMiscRotation,
+                            rate,
+                            rate / 20.0,
+                            false,
+                            timestamp_ms,
+                        )
+                        .with_description(format!(
+                            "High rotation anomalies: {} in 1s",
+                            state.misc.short_window_count
+                        )),
+                    );
+                }
             }
-
-            // Reset short window counter and advance window start for short window
             state.misc.short_window_count = 0;
+            // Advance start by full windows elapsed to avoid always-true condition
+            let windows = (short_elapsed / SHORT_WINDOW_MS).max(1);
+            state.misc.short_window_start_ms += windows * SHORT_WINDOW_MS;
         }
 
-        // Reset counters at long window boundary
-        if elapsed >= LONG_WINDOW_MS {
-            // Calculate normalized rate (per second over 60s)
-            let rate = (state.misc.long_window_count as f32 * 20.0) / 1200.0;
+        // Medium window (10s bucket) - currently just reset bucket properly
+        let medium_elapsed = timestamp_ms - state.misc.medium_window_start_ms;
+        if medium_elapsed >= MEDIUM_WINDOW_MS {
+            state.misc.medium_window_count = 0;
+            let windows = (medium_elapsed / MEDIUM_WINDOW_MS).max(1);
+            state.misc.medium_window_start_ms += windows * MEDIUM_WINDOW_MS;
+        }
 
+        // Long window (60s bucket)
+        let long_elapsed = timestamp_ms - state.misc.long_window_start_ms;
+        if long_elapsed >= LONG_WINDOW_MS {
+            let rate = (state.misc.long_window_count as f32 * 20.0) / 1200.0;
             if rate > 1.0 {
                 findings.push(
                     Finding::new(
@@ -274,11 +284,12 @@ impl MiscCheck {
                 );
             }
 
-            // Reset all windows and advance window_start_ms
             state.misc.short_window_count = 0;
             state.misc.medium_window_count = 0;
             state.misc.long_window_count = 0;
-            state.misc.window_start_ms = timestamp_ms;
+            state.misc.short_window_start_ms = timestamp_ms;
+            state.misc.medium_window_start_ms = timestamp_ms;
+            state.misc.long_window_start_ms = timestamp_ms;
         }
     }
 

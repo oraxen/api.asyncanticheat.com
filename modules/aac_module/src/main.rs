@@ -326,7 +326,10 @@ async fn update_config(
         entry.value_mut().update_config(&config);
     }
 
-    info!("Config updated, applied to {} existing players", state.player_states.len());
+    info!(
+        "Config updated, applied to {} existing players",
+        state.player_states.len()
+    );
     Json(config.clone())
 }
 

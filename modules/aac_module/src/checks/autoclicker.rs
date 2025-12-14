@@ -69,22 +69,26 @@ impl AutoclickerCheck {
         // Record click interval
         if state.autoclicker.last_click_ms > 0 {
             let interval = timestamp_ms - state.autoclicker.last_click_ms;
-            state.autoclicker.click_intervals.push(interval as f64);
+            // Ignore out-of-order timestamps (negative/zero intervals) to avoid polluting timing stats.
+            if interval > 0 {
+                state.autoclicker.click_intervals.push(interval as f64);
 
-            // Check tick alignment
-            if self.config.check_tick_delay {
-                findings.extend(self.check_tick_alignment(state, interval, timestamp_ms));
-            }
+                // Check tick alignment
+                if self.config.check_tick_delay {
+                    findings.extend(self.check_tick_alignment(state, interval, timestamp_ms));
+                }
 
-            // Check timing patterns when buffer is full
-            if self.config.check_timing && state.autoclicker.click_intervals.is_full() {
-                findings.extend(self.check_timing_patterns(state, timestamp_ms));
+                // Check timing patterns when buffer is full
+                if self.config.check_timing && state.autoclicker.click_intervals.is_full() {
+                    findings.extend(self.check_timing_patterns(state, timestamp_ms));
+                }
             }
         }
 
         // Update CPS tracking
-        if state.autoclicker.window_start_ms == 0 {
+        if state.autoclicker.window_start_ms == 0 || timestamp_ms < state.autoclicker.window_start_ms {
             state.autoclicker.window_start_ms = timestamp_ms;
+            state.autoclicker.clicks_in_window = 0;
         }
 
         state.autoclicker.clicks_in_window += 1;
@@ -104,7 +108,10 @@ impl AutoclickerCheck {
             findings.extend(self.check_noswing(state, timestamp_ms));
         }
 
-        state.autoclicker.last_click_ms = timestamp_ms;
+        // Only advance last_click_ms if this packet is not older than what we've already seen.
+        if timestamp_ms >= state.autoclicker.last_click_ms {
+            state.autoclicker.last_click_ms = timestamp_ms;
+        }
         findings
     }
 

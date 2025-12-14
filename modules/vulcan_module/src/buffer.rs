@@ -126,7 +126,14 @@ impl CheckBuffer {
 
     /// Check if should alert
     pub fn should_alert(&self) -> bool {
-        self.vl >= self.min_vl_alert && (self.vl % self.alert_interval == 0 || self.alert_interval == 1)
+        if self.vl < self.min_vl_alert {
+            return false;
+        }
+        // Guard against modulo by 0 (interval=0 should behave like "always")
+        if self.alert_interval <= 1 {
+            return true;
+        }
+        self.vl % self.alert_interval == 0
     }
 
     /// Check if should punish

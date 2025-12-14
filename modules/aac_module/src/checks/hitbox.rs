@@ -67,11 +67,15 @@ impl HitboxCheck {
         // NOTE: These are RELATIVE offsets from the entity's origin, NOT absolute positions!
         // They represent where on the entity's hitbox the player clicked.
         // For ATTACK actions, these should be within the entity's hitbox bounds (~1-2 blocks).
-        if let (Some(tx), Some(ty), Some(tz)) = (use_entity.target_x, use_entity.target_y, use_entity.target_z) {
+        if let (Some(tx), Some(ty), Some(tz)) = (
+            use_entity.target_x,
+            use_entity.target_y,
+            use_entity.target_z,
+        ) {
             // This is the click offset relative to entity origin, NOT reach distance
             // Normal values: -1.0 to 2.0 (depending on entity size and hitbox)
             let hitbox_offset = (tx * tx + ty * ty + tz * tz).sqrt();
-            
+
             // Hitbox offsets > 2.0 are suspicious (player-sized entity is ~0.6x1.8)
             // This detects invalid click positions, not reach
             if hitbox_offset > 2.0 {
@@ -118,7 +122,7 @@ impl HitboxCheck {
         //
         // Attack timing/pattern analysis can still be useful for detecting autoclickers
         // but that's handled in the autoclicker check.
-        
+
         Vec::new()
     }
 
@@ -126,4 +130,3 @@ impl HitboxCheck {
     // Actual reach detection requires tracking both player and entity positions,
     // which is done in the ncp_fight_v1 transform.
 }
-
