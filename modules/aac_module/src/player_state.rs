@@ -283,6 +283,8 @@ pub struct MiscState {
     // Flags
     pub invalid_pitch_flagged: bool,
     pub invalid_abilities_flagged: bool,
+    /// Debounce for "instant_break && !invulnerable" abilities finding (episode-style).
+    pub invalid_instant_break_flagged: bool,
     // Constants
     pub constants: MiscConstants,
 }
@@ -301,6 +303,7 @@ impl MiscState {
             long_window_start_ms: 0,
             invalid_pitch_flagged: false,
             invalid_abilities_flagged: false,
+            invalid_instant_break_flagged: false,
             constants: MiscConstants::default(),
         }
     }

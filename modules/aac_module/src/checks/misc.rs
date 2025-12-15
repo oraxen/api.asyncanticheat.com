@@ -200,17 +200,24 @@ impl MiscCheck {
         if abilities.instant_break && !abilities.invulnerable {
             // instant_break is typically only available in creative mode
             // which also grants invulnerability
-            findings.push(
-                Finding::new(
-                    state.player_uuid,
-                    FeatureId::AacMiscAbilities,
-                    1.0,
-                    0.7,
-                    false,
-                    timestamp_ms,
-                )
-                .with_description("Suspicious instant_break ability".to_string()),
-            );
+            // Debounce like the flying sub-check: only emit once per "episode" until the condition clears.
+            if !state.misc.invalid_instant_break_flagged {
+                state.misc.invalid_instant_break_flagged = true;
+                findings.push(
+                    Finding::new(
+                        state.player_uuid,
+                        FeatureId::AacMiscAbilities,
+                        1.0,
+                        0.7,
+                        false,
+                        timestamp_ms,
+                    )
+                    .with_description("Suspicious instant_break ability".to_string()),
+                );
+            }
+        } else if state.misc.invalid_instant_break_flagged {
+            // Condition cleared: reset so future invalid states can be detected again.
+            state.misc.invalid_instant_break_flagged = false;
         }
 
         findings
