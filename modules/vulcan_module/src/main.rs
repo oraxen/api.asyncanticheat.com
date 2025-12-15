@@ -81,7 +81,9 @@ impl AppState {
             module_config,
             player_states: DashMap::new(),
             http_client: reqwest::Client::builder()
-                .timeout(Duration::from_secs(5))
+                // Callbacks may involve DB writes; keep this comfortably above the API's
+                // typical p99 so we don't drop findings under load.
+                .timeout(Duration::from_secs(20))
                 .build()
                 .unwrap(),
         }
@@ -206,6 +208,7 @@ async fn process_batch(
         let server_id = request.server_id.clone();
         let session_id = Some(request.session_id.clone());
         let batch_uuid = request.batch_id.parse::<Uuid>().ok();
+        let batch_id_str = request.batch_id.clone();
 
         let findings: Vec<FindingOut> = all_findings
             .into_iter()
@@ -229,22 +232,52 @@ async fn process_batch(
         };
 
         tokio::spawn(async move {
-            match http_client
-                .post(&api_url)
-                .header("Authorization", format!("Bearer {}", token))
-                .json(&payload)
-                .send()
-                .await
-            {
-                Ok(resp) if resp.status().is_success() => {
-                    debug!("Findings callback sent successfully");
+            let findings_len = payload.findings.len();
+            let mut attempt: u32 = 0;
+            loop {
+                attempt += 1;
+                let res = http_client
+                    .post(&api_url)
+                    .header("Authorization", format!("Bearer {}", token))
+                    .json(&payload)
+                    .send()
+                    .await;
+
+                match res {
+                    Ok(resp) if resp.status().is_success() => {
+                        debug!(
+                            "Findings callback ok batch_id={} findings={} attempt={}",
+                            batch_id_str, findings_len, attempt
+                        );
+                        break;
+                    }
+                    Ok(resp) => {
+                        let status = resp.status();
+                        let body = resp.text().await.unwrap_or_default();
+                        warn!(
+                            "Findings callback failed batch_id={} findings={} attempt={} status={} body={}",
+                            batch_id_str, findings_len, attempt, status, body
+                        );
+                    }
+                    Err(e) => {
+                        warn!(
+                            "Findings callback error batch_id={} findings={} attempt={} err={:?}",
+                            batch_id_str, findings_len, attempt, e
+                        );
+                    }
                 }
-                Ok(resp) => {
-                    warn!("Findings callback failed with status: {}", resp.status());
+
+                if attempt >= 5 {
+                    error!(
+                        "Findings callback giving up batch_id={} findings={} after {} attempts",
+                        batch_id_str, findings_len, attempt
+                    );
+                    break;
                 }
-                Err(e) => {
-                    error!("Findings callback error: {}", e);
-                }
+
+                // Exponential backoff (200ms, 400ms, 800ms, 1600ms, 3200ms)
+                let backoff_ms = 200u64.saturating_mul(1u64 << (attempt - 1));
+                tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
             }
         });
     }
