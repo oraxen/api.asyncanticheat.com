@@ -31,3 +31,6 @@ Thumbs.db
 *.log
 logs/
 
+# Test data (real captured batches can be huge; keep only manifests in git)
+test_data/**/*.ndjson.gz
+

@@ -1,0 +1,45 @@
+{
+  "label": "cheat_bhop",
+  "captured_at_local": "2025-12-15T13:46:07.357460+00:00",
+  "note": "User reported warmup/off segment may be contaminated (cheat used briefly).",
+  "markers": {
+    "start": {
+      "pkt": "DEV_MARKER",
+      "name": "Uxon",
+      "dir": "dev",
+      "fields": {
+        "warmup_s": 10,
+        "toggle_s": 10,
+        "dev_label": "cheat_bhop",
+        "dev_phase": "start",
+        "dev_session_id": "48f2909d-b077-4ed4-aa38-3751e8def552",
+        "dev_state": "off",
+        "duration_s": 90
+      },
+      "uuid": "bc8b4993-e8fa-42d9-be60-7ebbe5267c98",
+      "ts": 1765805625512
+    },
+    "stop": {
+      "pkt": "DEV_MARKER",
+      "name": "Uxon",
+      "dir": "dev",
+      "fields": {
+        "reason": "finished",
+        "dev_label": "cheat_bhop",
+        "dev_phase": "stop",
+        "dev_session_id": "48f2909d-b077-4ed4-aa38-3751e8def552",
+        "dev_state": "off"
+      },
+      "uuid": "bc8b4993-e8fa-42d9-be60-7ebbe5267c98",
+      "ts": 1765805715498
+    }
+  },
+  "derived_window": {
+    "start_ts": 1765805625512,
+    "stop_ts": 1765805715498,
+    "margin_ms": 30000
+  },
+  "files": {
+    "count": 119
+  }
+}

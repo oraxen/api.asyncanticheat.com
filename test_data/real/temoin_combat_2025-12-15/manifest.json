@@ -1,0 +1,45 @@
+{
+  "label": "temoin_combat",
+  "captured_at_local": "2025-12-15T13:46:07.320535+00:00",
+  "note": null,
+  "markers": {
+    "start": {
+      "pkt": "DEV_MARKER",
+      "name": "Uxon",
+      "dir": "dev",
+      "fields": {
+        "warmup_s": 60,
+        "toggle_s": 10,
+        "dev_label": "temoin_combat",
+        "dev_phase": "start",
+        "dev_session_id": "8fd3b610-e558-4686-9be1-f709e4d31af8",
+        "dev_state": "off",
+        "duration_s": 60
+      },
+      "uuid": "bc8b4993-e8fa-42d9-be60-7ebbe5267c98",
+      "ts": 1765805413972
+    },
+    "stop": {
+      "pkt": "DEV_MARKER",
+      "name": "Uxon",
+      "dir": "dev",
+      "fields": {
+        "reason": "finished",
+        "dev_label": "temoin_combat",
+        "dev_phase": "stop",
+        "dev_session_id": "8fd3b610-e558-4686-9be1-f709e4d31af8",
+        "dev_state": "off"
+      },
+      "uuid": "bc8b4993-e8fa-42d9-be60-7ebbe5267c98",
+      "ts": 1765805473949
+    }
+  },
+  "derived_window": {
+    "start_ts": 1765805413972,
+    "stop_ts": 1765805473949,
+    "margin_ms": 30000
+  },
+  "files": {
+    "count": 43
+  }
+}
