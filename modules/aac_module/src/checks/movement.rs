@@ -160,7 +160,7 @@ impl MovementCheck {
         // (otherwise we'd compare new_loc to itself)
         if new_loc.on_ground {
             // Player landed: reset fall distance regardless of magnitude to avoid small-fall accumulation.
-                state.movement.fall_distance = 0.0;
+            state.movement.fall_distance = 0.0;
             state.movement.last_ground_y = new_loc.y;
         } else if let Some(last) = state.movement.last_location {
             if new_loc.y < last.y {
@@ -241,8 +241,10 @@ impl MovementCheck {
         };
 
         let elapsed_ms = timestamp_ms - start_ms;
-        // Out-of-order timestamps: ignore to avoid resetting the window (prevents evasion).
+        // Out-of-order timestamps: reset the window instead of producing nonsense ratios.
         if elapsed_ms <= 0 {
+            state.movement.timer_start_ms = Some(timestamp_ms);
+            state.movement.move_count = 0;
             return findings;
         }
 
@@ -253,7 +255,10 @@ impl MovementCheck {
 
             if ratio > TIMER_TOLERANCE {
                 let advantage = ratio - 1.0;
-                let mitigated = state.movement.timer_vl.update(advantage as f32, timestamp_ms);
+                let mitigated = state
+                    .movement
+                    .timer_vl
+                    .update(advantage as f32, timestamp_ms);
 
                 if ratio > 1.15 {
                     findings.push(
@@ -299,11 +304,11 @@ impl MovementCheck {
                 // Should take fall damage
                 // Check if the ground claim is valid (Y position should be at block boundary)
                 let y_frac = new_loc.y - new_loc.y.floor();
-                
+
                 // Valid landing should be near a block boundary
                 if y_frac > 0.01 && y_frac < 0.99 {
                     let mitigated = state.movement.distance_vl.update(1.0, timestamp_ms);
-                    
+
                     findings.push(
                         Finding::new(
                             state.player_uuid,
@@ -325,7 +330,7 @@ impl MovementCheck {
         // Check for falling while claiming ground
         if new_loc.on_ground && v_dist < -0.5 {
             let mitigated = state.movement.distance_vl.update(0.5, timestamp_ms);
-            
+
             findings.push(Finding::new(
                 state.player_uuid,
                 FeatureId::AacMoveNofall,
@@ -352,16 +357,21 @@ impl MovementCheck {
             let vel_age_ms = timestamp_ms - state.movement.velocity_received_ms;
             let max_vel_ms = (self.config.max_vel_time * 1000.0) as i64;
 
-            // Out-of-order timestamps: don't apply velocity checks to movement that predates the velocity.
-            if vel_age_ms >= 0 && vel_age_ms < max_vel_ms {
-                // Expected horizontal velocity effect
+            if vel_age_ms < 0 {
+                // Out-of-order timestamps: don't apply velocity checks to movement
+                // that predates the velocity, but keep the velocity for future packets
+            } else if vel_age_ms < max_vel_ms {
+                // Within valid velocity window - apply velocity checks
                 let expected_h = (vx * vx + vz * vz).sqrt();
-                
+
                 // Check if player is taking the velocity
                 if expected_h > 0.1 && h_dist < expected_h * 0.3 {
                     // Player ignored significant knockback
                     let ignored_ratio = 1.0 - (h_dist / expected_h);
-                    let mitigated = state.movement.distance_vl.update(ignored_ratio as f32, timestamp_ms);
+                    let mitigated = state
+                        .movement
+                        .distance_vl
+                        .update(ignored_ratio as f32, timestamp_ms);
 
                     if ignored_ratio > 0.5 {
                         findings.push(
@@ -383,7 +393,7 @@ impl MovementCheck {
                     }
                 }
             } else {
-                // Velocity expired
+                // Velocity expired (vel_age_ms >= max_vel_ms)
                 state.movement.pending_velocity = None;
             }
         }
@@ -401,7 +411,10 @@ impl MovementCheck {
 
         if h_dist > MAX_SNEAK_SPEED {
             let ratio = h_dist / MAX_SNEAK_SPEED;
-            let mitigated = state.movement.distance_vl.update((ratio - 1.0) as f32, timestamp_ms);
+            let mitigated = state
+                .movement
+                .distance_vl
+                .update((ratio - 1.0) as f32, timestamp_ms);
 
             if ratio > 1.3 {
                 findings.push(
@@ -436,7 +449,10 @@ impl MovementCheck {
         let max_speed = MAX_WALK_SPEED * 0.2;
         if h_dist > max_speed {
             let ratio = h_dist / max_speed;
-            let mitigated = state.movement.distance_vl.update((ratio - 1.0) as f32, timestamp_ms);
+            let mitigated = state
+                .movement
+                .distance_vl
+                .update((ratio - 1.0) as f32, timestamp_ms);
 
             if ratio > 1.5 {
                 findings.push(
@@ -477,7 +493,10 @@ impl MovementCheck {
         if h_dist > max_speed {
             // Use the same max_speed for ratio calculation to avoid inflated values
             let ratio = h_dist / max_speed;
-            let mitigated = state.movement.distance_vl.update((ratio - 1.0) as f32, timestamp_ms);
+            let mitigated = state
+                .movement
+                .distance_vl
+                .update((ratio - 1.0) as f32, timestamp_ms);
 
             if ratio > 1.5 {
                 findings.push(
@@ -514,7 +533,8 @@ impl MovementCheck {
         // For now, we'll accept entity_id > 0 as potentially valid
         // A proper fix would track player entity IDs from spawn packets
         if vel.entity_id > 0 {
-            state.movement.pending_velocity = Some((vel.velocity_x, vel.velocity_y, vel.velocity_z));
+            state.movement.pending_velocity =
+                Some((vel.velocity_x, vel.velocity_y, vel.velocity_z));
             state.movement.velocity_received_ms = timestamp_ms;
         }
         Vec::new()
@@ -524,4 +544,3 @@ impl MovementCheck {
         state.movement.is_sneaking = sneak.sneaking;
     }
 }
-
