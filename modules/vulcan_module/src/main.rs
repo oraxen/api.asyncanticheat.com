@@ -130,15 +130,23 @@ struct ProcessBatchResponse {
 
 /// Finding callback request
 #[derive(Serialize)]
-struct FindingCallbackRequest {
-    server_id: String,
-    player_uuid: String,
-    player_name: Option<String>,
+struct FindingOut {
+    player_uuid: Option<Uuid>,
     detector_name: String,
-    severity: String,
+    detector_version: Option<String>,
+    severity: Option<String>,
     title: String,
     description: Option<String>,
-    evidence: Option<serde_json::Value>,
+    evidence_s3_key: Option<String>,
+    evidence_json: Option<serde_json::Value>,
+}
+
+#[derive(Serialize)]
+struct PostFindingsRequest {
+    server_id: String,
+    session_id: Option<String>,
+    batch_id: Option<Uuid>,
+    findings: Vec<FindingOut>,
 }
 
 async fn health() -> Json<HealthResponse> {
@@ -191,44 +199,54 @@ async fn process_batch(
 
     // Send findings to API
     if !all_findings.is_empty() {
-        let api_url = format!("{}/module/findings", state.module_config.api_url);
-        
-        for (finding, player_name) in all_findings {
-            let callback_req = FindingCallbackRequest {
-                server_id: request.server_id.clone(),
-                player_uuid: finding.player_uuid.to_string(),
-                player_name: Some(player_name),
+        let base = state.module_config.api_url.trim_end_matches('/');
+        let api_url = format!("{}/callbacks/findings", base);
+        let http_client = state.http_client.clone();
+        let token = state.module_config.callback_token.clone();
+        let server_id = request.server_id.clone();
+        let session_id = Some(request.session_id.clone());
+        let batch_uuid = request.batch_id.parse::<Uuid>().ok();
+
+        let findings: Vec<FindingOut> = all_findings
+            .into_iter()
+            .map(|(finding, _player_name)| FindingOut {
+                player_uuid: Some(finding.player_uuid),
                 detector_name: finding.feature.detector_name().to_string(),
-                severity: finding.severity.as_str().to_string(),
+                detector_version: Some(env!("CARGO_PKG_VERSION").to_string()),
+                severity: Some(finding.severity.as_str().to_string()),
                 title: finding.title.clone(),
                 description: finding.description.clone(),
-                evidence: finding.evidence.clone(),
-            };
+                evidence_s3_key: None,
+                evidence_json: finding.evidence.clone(),
+            })
+            .collect();
 
-            let http_client = state.http_client.clone();
-            let token = state.module_config.callback_token.clone();
-            let url = api_url.clone();
+        let payload = PostFindingsRequest {
+            server_id,
+            session_id,
+            batch_id: batch_uuid,
+            findings,
+        };
 
-            tokio::spawn(async move {
-                match http_client
-                    .post(&url)
-                    .header("Authorization", format!("Bearer {}", token))
-                    .json(&callback_req)
-                    .send()
-                    .await
-                {
-                    Ok(resp) if resp.status().is_success() => {
-                        debug!("Finding callback sent successfully");
-                    }
-                    Ok(resp) => {
-                        warn!("Finding callback failed with status: {}", resp.status());
-                    }
-                    Err(e) => {
-                        error!("Finding callback error: {}", e);
-                    }
+        tokio::spawn(async move {
+            match http_client
+                .post(&api_url)
+                .header("Authorization", format!("Bearer {}", token))
+                .json(&payload)
+                .send()
+                .await
+            {
+                Ok(resp) if resp.status().is_success() => {
+                    debug!("Findings callback sent successfully");
                 }
-            });
-        }
+                Ok(resp) => {
+                    warn!("Findings callback failed with status: {}", resp.status());
+                }
+                Err(e) => {
+                    error!("Findings callback error: {}", e);
+                }
+            }
+        });
     }
 
     let elapsed = start.elapsed();
