@@ -43,7 +43,8 @@ struct ModuleConfig {
 impl ModuleConfig {
     fn from_env() -> Self {
         Self {
-            api_url: std::env::var("API_URL").unwrap_or_else(|_| "http://localhost:3002".to_string()),
+            api_url: std::env::var("API_URL")
+                .unwrap_or_else(|_| "http://localhost:3002".to_string()),
             callback_token: std::env::var("CALLBACK_TOKEN").unwrap_or_else(|_| "dev".to_string()),
             host: std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string()),
             port: std::env::var("PORT")
@@ -72,7 +73,7 @@ struct AppState {
 impl AppState {
     fn new(module_config: ModuleConfig) -> Self {
         let vulcan_config = VulcanConfig::default();
-        
+
         Self {
             combat_checks: CombatChecks::new(vulcan_config.clone()),
             movement_checks: MovementChecks::new(vulcan_config.clone()),
@@ -95,13 +96,22 @@ impl AppState {
         player_name: String,
         timestamp_ms: i64,
     ) -> dashmap::mapref::one::RefMut<'_, Uuid, PlayerState> {
-        if !self.player_states.contains_key(&player_uuid) {
+        // Avoid the non-atomic contains_key + insert + get_mut().unwrap() pattern:
+        // cleanup can remove entries between these steps, causing panics.
+        // Use a small retry loop instead.
+        loop {
+            if let Some(s) = self.player_states.get_mut(&player_uuid) {
+                return s;
+            }
+
             let config = self.vulcan_config.read().await;
-            let state = PlayerState::new(player_uuid, player_name, &config, timestamp_ms);
+            let candidate =
+                PlayerState::new(player_uuid, player_name.clone(), &config, timestamp_ms);
             drop(config);
-            self.player_states.insert(player_uuid, state);
+
+            // Insert is atomic; if another task inserts concurrently, this becomes a no-op overwrite.
+            self.player_states.insert(player_uuid, candidate);
         }
-        self.player_states.get_mut(&player_uuid).unwrap()
     }
 }
 
@@ -188,9 +198,21 @@ async fn process_batch(
 
         // Run all check categories
         let mut findings = Vec::new();
-        findings.extend(state.combat_checks.process(&mut player_state, &parsed, timestamp_ms));
-        findings.extend(state.movement_checks.process(&mut player_state, &parsed, timestamp_ms));
-        findings.extend(state.player_checks.process(&mut player_state, &parsed, timestamp_ms));
+        findings.extend(
+            state
+                .combat_checks
+                .process(&mut player_state, &parsed, timestamp_ms),
+        );
+        findings.extend(
+            state
+                .movement_checks
+                .process(&mut player_state, &parsed, timestamp_ms),
+        );
+        findings.extend(
+            state
+                .player_checks
+                .process(&mut player_state, &parsed, timestamp_ms),
+        );
 
         for finding in findings {
             all_findings.push((finding, player_name.clone()));
@@ -331,7 +353,7 @@ async fn get_player_states(State(state): State<Arc<AppState>>) -> Json<PlayerSta
 async fn cleanup_states(state: Arc<AppState>) {
     loop {
         tokio::time::sleep(Duration::from_secs(60)).await;
-        
+
         let now = chrono::Utc::now().timestamp_millis();
         let timeout = state.module_config.player_timeout_ms;
 
@@ -387,4 +409,3 @@ async fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
-

@@ -363,6 +363,8 @@ struct CombatEventLine {
     reach_distance: Option<f64>,
     #[serde(default)]
     aim_off: Option<f64>,
+    #[serde(default)]
+    had_swing: Option<bool>,
 }
 
 fn parse_combat_event(line: &str) -> anyhow::Result<CombatEvent> {
@@ -382,6 +384,7 @@ fn parse_combat_event(line: &str) -> anyhow::Result<CombatEvent> {
         yaw_diff: ev.yaw_diff,
         reach_distance: ev.reach_distance,
         aim_off: ev.aim_off,
+        had_swing: ev.had_swing,
     })
 }
 

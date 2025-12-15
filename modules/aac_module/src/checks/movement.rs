@@ -241,10 +241,8 @@ impl MovementCheck {
         };
 
         let elapsed_ms = timestamp_ms - start_ms;
-        // Out-of-order timestamps: reset the window instead of producing nonsense ratios.
+        // Out-of-order timestamps: ignore to avoid resetting the window (prevents evasion).
         if elapsed_ms <= 0 {
-            state.movement.timer_start_ms = Some(timestamp_ms);
-            state.movement.move_count = 0;
             return findings;
         }
 

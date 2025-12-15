@@ -83,8 +83,12 @@ impl DelaysCheck {
 
         match dig.status.as_str() {
             "START_DESTROY" | "START_DIGGING" => {
-                state.delays.last_break_start_ms = timestamp_ms;
-                state.delays.breaking_block = Some((dig.x, dig.y, dig.z));
+                // Avoid moving backwards on out-of-order timestamps.
+                // Only advance the start timestamp when it is newer/equal.
+                if timestamp_ms >= state.delays.last_break_start_ms {
+                    state.delays.last_break_start_ms = timestamp_ms;
+                    state.delays.breaking_block = Some((dig.x, dig.y, dig.z));
+                }
             }
             "STOP_DESTROY" | "STOP_DIGGING" => {
                 if state.delays.last_break_start_ms > 0 {
@@ -135,7 +139,7 @@ impl DelaysCheck {
 
                     // Avoid moving backwards on out-of-order timestamps
                     if timestamp_ms > state.delays.last_break_end_ms {
-                        state.delays.last_break_end_ms = timestamp_ms;
+                    state.delays.last_break_end_ms = timestamp_ms;
                     }
                 }
                 state.delays.breaking_block = None;
@@ -185,7 +189,7 @@ impl DelaysCheck {
 
         // Avoid moving backwards on out-of-order timestamps
         if timestamp_ms > state.delays.last_place_ms {
-            state.delays.last_place_ms = timestamp_ms;
+        state.delays.last_place_ms = timestamp_ms;
         }
         findings
     }
@@ -222,7 +226,7 @@ impl DelaysCheck {
 
         // Avoid moving backwards on out-of-order timestamps
         if timestamp_ms > state.delays.last_use_ms {
-            state.delays.last_use_ms = timestamp_ms;
+        state.delays.last_use_ms = timestamp_ms;
         }
         findings
     }
@@ -259,7 +263,7 @@ impl DelaysCheck {
         if sneak.sneaking {
             // Avoid moving backwards on out-of-order timestamps
             if timestamp_ms > state.delays.last_sneak_ms {
-                state.delays.last_sneak_ms = timestamp_ms;
+            state.delays.last_sneak_ms = timestamp_ms;
             }
         }
 

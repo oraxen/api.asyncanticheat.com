@@ -86,21 +86,23 @@ impl AutoclickerCheck {
         }
 
         // Update CPS tracking
-        if state.autoclicker.window_start_ms == 0 || timestamp_ms < state.autoclicker.window_start_ms {
+        if state.autoclicker.window_start_ms == 0 {
             state.autoclicker.window_start_ms = timestamp_ms;
             state.autoclicker.clicks_in_window = 0;
         }
+        // Out-of-order timestamps: do not reset the CPS window (prevents evasion and state corruption).
+        if timestamp_ms >= state.autoclicker.window_start_ms {
+            state.autoclicker.clicks_in_window += 1;
 
-        state.autoclicker.clicks_in_window += 1;
+            // Check CPS at window boundary
+            let window_elapsed = timestamp_ms - state.autoclicker.window_start_ms;
+            if window_elapsed >= CPS_WINDOW_MS {
+                findings.extend(self.check_cps(state, timestamp_ms));
 
-        // Check CPS at window boundary
-        let window_elapsed = timestamp_ms - state.autoclicker.window_start_ms;
-        if window_elapsed >= CPS_WINDOW_MS {
-            findings.extend(self.check_cps(state, timestamp_ms));
-            
-            // Reset window
-            state.autoclicker.clicks_in_window = 0;
-            state.autoclicker.window_start_ms = timestamp_ms;
+                // Reset window
+                state.autoclicker.clicks_in_window = 0;
+                state.autoclicker.window_start_ms = timestamp_ms;
+            }
         }
 
         // Check no-swing
@@ -265,6 +267,10 @@ impl AutoclickerCheck {
 
         // Check if attack happened without recent swing
         let swing_age = timestamp_ms - state.autoclicker.last_swing_ms;
+        // Out-of-order timestamps: don't let negative ages reset counters.
+        if swing_age < 0 {
+            return findings;
+        }
         
         // Swing should come before or very shortly after attack (within 50ms)
         if swing_age > 100 {
@@ -296,7 +302,7 @@ impl AutoclickerCheck {
     fn handle_swing(&self, state: &mut PlayerState, _anim: &ArmAnimationPacket, timestamp_ms: i64) {
         // Out-of-order packets can arrive; don't move swing time backwards.
         if timestamp_ms >= state.autoclicker.last_swing_ms {
-            state.autoclicker.last_swing_ms = timestamp_ms;
+        state.autoclicker.last_swing_ms = timestamp_ms;
         }
     }
 }

@@ -155,9 +155,9 @@ impl MiscCheck {
 
         // Update state (monotonic guard; don't let out-of-order packets corrupt rotation state)
         if timestamp_ms >= state.misc.last_rotation_ms {
-            state.misc.last_yaw = yaw;
-            state.misc.last_pitch = pitch;
-            state.misc.last_rotation_ms = timestamp_ms;
+        state.misc.last_yaw = yaw;
+        state.misc.last_pitch = pitch;
+        state.misc.last_rotation_ms = timestamp_ms;
         }
 
         findings
@@ -299,11 +299,15 @@ impl MiscCheck {
     }
 
     fn normalize_angle(&self, angle: f32) -> f32 {
-        let mut a = angle;
-        while a > 180.0 {
-            a -= 360.0;
+        // Guard against non-finite values (NaN/±Inf) to avoid infinite loops.
+        if !angle.is_finite() {
+            return 0.0;
         }
-        while a < -180.0 {
+        // Fast normalization into [-180, 180] without while-loops.
+        let mut a = angle % 360.0;
+        if a > 180.0 {
+            a -= 360.0;
+        } else if a < -180.0 {
             a += 360.0;
         }
         a

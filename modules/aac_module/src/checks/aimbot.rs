@@ -58,9 +58,9 @@ impl AimbotCheck {
                 return Vec::new();
             }
 
-            // Calculate deltas
-            let delta_yaw = self.normalize_angle(yaw - state.aimbot.last_yaw);
-            let delta_pitch = pitch - state.aimbot.last_pitch;
+        // Calculate deltas
+        let delta_yaw = self.normalize_angle(yaw - state.aimbot.last_yaw);
+        let delta_pitch = pitch - state.aimbot.last_pitch;
 
             state.aimbot.yaw_deltas.push(delta_yaw.abs() as f64);
             state.aimbot.pitch_deltas.push(delta_pitch.abs() as f64);
@@ -93,20 +93,24 @@ impl AimbotCheck {
 
         // Update state (monotonic timestamp guard)
         if timestamp_ms >= state.aimbot.last_rotation_ms {
-            state.aimbot.last_yaw = yaw;
-            state.aimbot.last_pitch = pitch;
-            state.aimbot.last_rotation_ms = timestamp_ms;
+        state.aimbot.last_yaw = yaw;
+        state.aimbot.last_pitch = pitch;
+        state.aimbot.last_rotation_ms = timestamp_ms;
         }
 
         findings
     }
 
     fn normalize_angle(&self, angle: f32) -> f32 {
-        let mut a = angle;
-        while a > 180.0 {
-            a -= 360.0;
+        // Guard against non-finite values (NaN/±Inf) to avoid infinite loops.
+        if !angle.is_finite() {
+            return 0.0;
         }
-        while a < -180.0 {
+        // Fast normalization into [-180, 180] without while-loops.
+        let mut a = angle % 360.0;
+        if a > 180.0 {
+            a -= 360.0;
+        } else if a < -180.0 {
             a += 360.0;
         }
         a
