@@ -47,9 +47,14 @@ pub struct BadPacketsState {
     pub flying_window_start_ms: i64,
     pub last_abilities_flying: bool,
     pub server_allows_flight: bool,
+    /// Whether the server allows instant block breaking (creative mode)
+    pub server_allows_instant_break: bool,
     pub buffer_pitch: CheckBuffer,
     pub buffer_nan: CheckBuffer,
+    /// Buffer for flying abilities spoofing detection
     pub buffer_abilities: CheckBuffer,
+    /// Buffer for instant_break abilities spoofing detection (separate from flying)
+    pub buffer_instant_break: CheckBuffer,
     pub buffer_slot: CheckBuffer,
     pub buffer_flying_flood: CheckBuffer,
 }
@@ -61,9 +66,11 @@ impl Default for BadPacketsState {
             flying_window_start_ms: 0,
             last_abilities_flying: false,
             server_allows_flight: false,
+            server_allows_instant_break: false,
             buffer_pitch: CheckBuffer::new(1.0, 5, 0.9),
             buffer_nan: CheckBuffer::new(1.0, 3, 0.9),
             buffer_abilities: CheckBuffer::new(2.0, 5, 0.9),
+            buffer_instant_break: CheckBuffer::new(2.0, 5, 0.9),
             buffer_slot: CheckBuffer::new(1.0, 5, 0.9),
             buffer_flying_flood: CheckBuffer::new(3.0, 10, 0.95),
         }

@@ -10,6 +10,7 @@ pub enum FeatureId {
     BadPacketsPitch,
     BadPacketsNaN,
     BadPacketsAbilities,
+    BadPacketsInstantBreak,
     BadPacketsSlot,
     BadPacketsFlyingFlood,
 
@@ -39,6 +40,7 @@ impl FeatureId {
             Self::BadPacketsPitch => "badpackets_pitch",
             Self::BadPacketsNaN => "badpackets_nan",
             Self::BadPacketsAbilities => "badpackets_abilities",
+            Self::BadPacketsInstantBreak => "badpackets_instant_break",
             Self::BadPacketsSlot => "badpackets_slot",
             Self::BadPacketsFlyingFlood => "badpackets_flying_flood",
             Self::ScaffoldAirborne => "scaffold_airborne",
@@ -56,7 +58,7 @@ impl FeatureId {
     pub fn category(&self) -> &'static str {
         match self {
             Self::BadPacketsPitch | Self::BadPacketsNaN | Self::BadPacketsAbilities |
-            Self::BadPacketsSlot | Self::BadPacketsFlyingFlood => "badpackets",
+            Self::BadPacketsInstantBreak | Self::BadPacketsSlot | Self::BadPacketsFlyingFlood => "badpackets",
             Self::ScaffoldAirborne | Self::ScaffoldSprint => "scaffold",
             Self::FastPlace | Self::FastPlaceCritical => "fastplace",
             Self::FastBreak | Self::FastBreakCritical => "fastbreak",

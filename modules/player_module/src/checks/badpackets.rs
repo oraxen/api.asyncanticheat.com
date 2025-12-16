@@ -59,7 +59,7 @@ impl BadPacketsCheck {
             }
             ParsedPacket::Abilities(abilities) => {
                 if self.config.check_abilities_spoof {
-                    findings.extend(self.check_abilities(state, abilities.is_flying, timestamp_ms));
+                    findings.extend(self.check_abilities(state, abilities, timestamp_ms));
                 }
             }
             _ => {}
@@ -164,11 +164,12 @@ impl BadPacketsCheck {
         findings
     }
 
-    fn check_abilities(&self, state: &mut PlayerState, is_flying: bool, timestamp_ms: i64) -> Vec<Finding> {
+    fn check_abilities(&self, state: &mut PlayerState, abilities: &crate::packets::AbilitiesPacket, timestamp_ms: i64) -> Vec<Finding> {
         let mut findings = Vec::new();
 
+        // Check 1: Flying abilities spoofing
         // If player claims to be flying but server hasn't allowed it
-        if is_flying && !state.badpackets.server_allows_flight {
+        if abilities.is_flying && !state.badpackets.server_allows_flight {
             let flagged = state.badpackets.buffer_abilities.fail();
             if flagged {
                 findings.push(
@@ -188,7 +189,34 @@ impl BadPacketsCheck {
             state.badpackets.buffer_abilities.pass();
         }
 
-        state.badpackets.last_abilities_flying = is_flying;
+        // Check 2: Instant break abilities spoofing (creative mode)
+        // If player claims instant_break but server hasn't allowed it (not in creative mode)
+        // Only flag if instant_break is true AND player is not invulnerable (invulnerable often
+        // accompanies creative mode legitimately)
+        let instant_break = abilities.instant_break.unwrap_or(false);
+        let invulnerable = abilities.invulnerable.unwrap_or(false);
+        
+        if instant_break && !state.badpackets.server_allows_instant_break && !invulnerable {
+            let flagged = state.badpackets.buffer_instant_break.fail();
+            if flagged {
+                findings.push(
+                    Finding::new(
+                        state.player_uuid,
+                        FeatureId::BadPacketsInstantBreak,
+                        1.0,
+                        state.badpackets.buffer_instant_break.vl(),
+                        state.badpackets.buffer_instant_break.max_vl(),
+                        timestamp_ms,
+                    )
+                    .with_description("Abilities spoof: instant_break without creative mode".to_string())
+                    .with_mitigate(true),
+                );
+            }
+        } else {
+            state.badpackets.buffer_instant_break.pass();
+        }
+
+        state.badpackets.last_abilities_flying = abilities.is_flying;
         findings
     }
 

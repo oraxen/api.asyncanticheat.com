@@ -81,6 +81,8 @@ pub struct AbilitiesPacket {
     pub allow_flying: Option<bool>,
     pub creative_mode: Option<bool>,
     pub invulnerable: Option<bool>,
+    /// True when player claims instant block breaking (creative mode ability)
+    pub instant_break: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -193,9 +195,10 @@ pub fn parse_packet(json: &serde_json::Value) -> Option<ParsedPacket> {
         "ABILITIES" | "PLAYER_ABILITIES" => {
             Some(ParsedPacket::Abilities(AbilitiesPacket {
                 is_flying: json.get("isFlying").or(json.get("flying")).and_then(|v| v.as_bool()).unwrap_or(false),
-                allow_flying: json.get("allowFlying").and_then(|v| v.as_bool()),
+                allow_flying: json.get("allowFlying").or(json.get("allow_flying")).and_then(|v| v.as_bool()),
                 creative_mode: json.get("creativeMode").and_then(|v| v.as_bool()),
                 invulnerable: json.get("invulnerable").and_then(|v| v.as_bool()),
+                instant_break: json.get("instant_break").or(json.get("instantBreak")).and_then(|v| v.as_bool()),
             }))
         }
         "SNEAK" | "ENTITY_ACTION" if json.get("action").and_then(|v| v.as_str()).map(|s| s.contains("SNEAK")).unwrap_or(false) => {
