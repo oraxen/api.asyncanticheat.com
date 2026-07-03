@@ -146,6 +146,9 @@ create index if not exists idx_batch_index_server_time
     on public.batch_index (server_id, received_at desc);
 create index if not exists idx_batch_index_session
     on public.batch_index (session_id, received_at desc);
+-- Used by the TTL cleanup task (object_store_cleanup.rs) to find expired rows.
+create index if not exists idx_batch_index_received_at
+    on public.batch_index (received_at);
 
 --------------------------------------------------------------------------------
 -- FINDINGS: detections/alerts produced by processors

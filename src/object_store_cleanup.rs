@@ -94,11 +94,30 @@ async fn cleanup_batch_index(
         return Ok(count.max(0) as u64);
     }
 
-    let res = sqlx::query("delete from public.batch_index where received_at < $1")
+    // Delete in chunks so a large backlog (e.g. first enable, or the service
+    // being down for a while) never turns into one giant transaction that
+    // locks batch_index and cascades millions of module_dispatches rows.
+    const CHUNK: i64 = 10_000;
+    let mut total: u64 = 0;
+    loop {
+        let res = sqlx::query(
+            "delete from public.batch_index where id in (
+                 select id from public.batch_index
+                 where received_at < $1
+                 order by received_at
+                 limit $2)",
+        )
         .bind(cutoff)
+        .bind(CHUNK)
         .execute(&state.db)
         .await?;
-    Ok(res.rows_affected())
+        let deleted = res.rows_affected();
+        total += deleted;
+        if deleted < CHUNK as u64 {
+            break;
+        }
+    }
+    Ok(total)
 }
 
 async fn cleanup_local_store(
